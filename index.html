@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WORDROP — 歴史改変シミュレーション</title>
+  <meta name="description" content="空に浮かぶ箱庭の島に単語を投下して、歴史を書き換える歴史改変シミュレーションゲーム。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Press+Start+2P&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com/3.4.16"></script>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="bg-[#07060f] text-[#f2ecd8] overflow-hidden">
+
+  <!-- ================= タイトル画面 ================= -->
+  <section id="title-screen" class="screen fixed inset-0 flex items-center justify-center">
+    <canvas id="title-world" class="pixel absolute inset-0 w-full h-full object-cover"></canvas>
+    <div class="absolute inset-0 title-vignette"></div>
+
+    <div class="relative z-10 flex flex-col items-center text-center px-4 w-full max-w-3xl">
+      <p class="font-dot text-[#9fe8ff] tracking-[0.4em] text-xs sm:text-sm mb-3 drop-shadow">歴史改変シミュレーション</p>
+      <canvas id="logo" class="pixel w-full max-w-[640px]" aria-label="WORDROP"></canvas>
+      <p class="font-dot text-[#ffe9a8] mt-2 text-sm sm:text-base drop-shadow">― ひとつの単語が、歴史を変える。―</p>
+
+      <div id="push-start" class="mt-10 font-pixel text-[11px] sm:text-sm text-white blink cursor-pointer select-none">PUSH START BUTTON</div>
+
+      <div id="title-menu" class="hidden mt-8 w-full max-w-sm">
+        <div class="menu-frame p-4 sm:p-5">
+          <p class="font-pixel text-[10px] text-[#ffd23f] mb-3">SELECT COURSE</p>
+          <button class="menu-item" data-course="japan"><span class="cursor">▶</span>日本史コース<small>弥生 → 平安 → 戦国</small></button>
+          <button class="menu-item" data-course="world"><span class="cursor">▶</span>世界史コース<small>古代ギリシア → 中世 → 大航海</small></button>
+
+          <div class="mt-4 pt-4 border-t-2 border-dashed border-[#5a5070] flex items-center justify-between gap-3">
+            <button id="btn-settings" class="metal-btn text-xs px-3 py-2">⚙ API設定</button>
+            <label class="flex items-center gap-2 cursor-pointer font-dot text-sm">
+              <span>オフライン</span>
+              <span class="switch">
+                <input type="checkbox" id="offline-toggle">
+                <span class="slider"></span>
+              </span>
+            </label>
+          </div>
+          <p id="mode-note" class="font-dot text-[11px] text-[#b8b0d0] mt-3 text-left leading-relaxed"></p>
+        </div>
+      </div>
+    </div>
+
+    <p class="absolute bottom-3 left-0 right-0 text-center font-pixel text-[8px] text-[#8a84a8] z-10">© 2026 WORDROP PROJECT</p>
+  </section>
+
+  <!-- ================= メイン画面 ================= -->
+  <section id="game-screen" class="screen hidden fixed inset-0">
+    <div class="game-grid h-full">
+      <!-- 左：箱庭マップ -->
+      <div id="map-pane" class="map-pane relative">
+        <div id="map-frame" class="map-frame relative">
+          <canvas id="world" class="pixel block"></canvas>
+          <div class="absolute top-2 left-3 pointer-events-none">
+            <div id="hud-year" class="font-pixel text-base sm:text-xl text-white hud-shadow">----</div>
+            <div id="hud-era" class="font-dot text-sm text-[#ffe9a8] hud-shadow mt-1">---</div>
+          </div>
+          <div class="absolute bottom-2 left-3 pointer-events-none font-pixel text-[8px] hud-shadow" id="hud-source"></div>
+          <div id="era-banner" class="era-banner hidden"></div>
+          <div id="tooltip" class="map-tooltip hidden"></div>
+        </div>
+      </div>
+
+      <!-- 右：石板コントロールパネル -->
+      <aside class="panel stone flex flex-col">
+        <div class="rivet tl"></div><div class="rivet tr"></div><div class="rivet bl"></div><div class="rivet br"></div>
+
+        <header class="flex items-center justify-between gap-2 px-1">
+          <div>
+            <div class="font-pixel text-[13px] text-[#ffd23f] engrave">WORDROP</div>
+            <div id="panel-course" class="font-dot text-[11px] text-[#d8d0bc] mt-1">日本史コース</div>
+          </div>
+          <div class="flex items-center gap-2">
+            <div id="turn-pips" class="flex gap-1"></div>
+            <button id="btn-mute" class="metal-btn icon-btn" title="サウンド">♪</button>
+            <button id="btn-settings-2" class="metal-btn icon-btn" title="設定">⚙</button>
+          </div>
+        </header>
+
+        <!-- パラメータ -->
+        <div class="slate mt-3">
+          <div class="slate-title">文明パラメータ</div>
+          <div id="params" class="space-y-2 mt-2"></div>
+        </div>
+
+        <!-- 激変ログ -->
+        <div class="slate mt-3 flex-1 min-h-0 flex flex-col">
+          <div class="slate-title flex justify-between"><span>歴史の激変ログ</span><span class="text-[#8a8070]">10年後 → 50年後 → 200年後</span></div>
+          <div id="log" class="log flex-1 min-h-[120px] overflow-y-auto mt-2 pr-1"></div>
+        </div>
+
+        <!-- 投下フォーム -->
+        <div class="slate mt-3">
+          <form id="drop-form" class="flex gap-2 items-stretch" autocomplete="off">
+            <div class="relative flex-1">
+              <input id="word-input" type="text" maxlength="15" placeholder="単語を入力（15文字以内）" class="word-input w-full">
+              <span id="char-count" class="absolute right-2 bottom-1 font-pixel text-[7px] text-[#8a8070]">0/15</span>
+            </div>
+            <button id="btn-drop" type="submit" class="drop-btn">歴史に<br>投下</button>
+          </form>
+          <button id="btn-next" type="button" class="next-btn hidden w-full">次の時代へ ▶</button>
+          <div id="cards" class="cards mt-3"></div>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ================= API設定モーダル ================= -->
+  <div id="settings-modal" class="modal hidden">
+    <div class="modal-box menu-frame max-w-md w-full">
+      <h2 class="font-pixel text-xs text-[#ffd23f] mb-4">GEMINI API SETTINGS</h2>
+      <label class="block font-dot text-sm mb-1">APIキー（ブラウザの localStorage にのみ保存）</label>
+      <div class="flex gap-2">
+        <input id="api-key" type="password" class="word-input flex-1" placeholder="AIza..." autocomplete="off" spellcheck="false">
+        <button id="btn-show-key" class="metal-btn text-xs px-2" type="button">表示</button>
+      </div>
+      <label class="block font-dot text-sm mt-4 mb-1">モデル名</label>
+      <input id="api-model" type="text" class="word-input w-full" spellcheck="false">
+      <label class="flex items-center gap-2 mt-4 cursor-pointer font-dot text-sm">
+        <span class="switch"><input type="checkbox" id="offline-toggle-2"><span class="slider"></span></span>
+        <span>オフライン（AIを使わず内蔵の予言エンジンで遊ぶ）</span>
+      </label>
+      <p id="api-status" class="font-dot text-xs mt-3 min-h-[1.5em] text-[#b8b0d0]"></p>
+      <div class="flex flex-wrap gap-2 justify-end mt-4">
+        <button id="btn-test-api" class="metal-btn text-xs px-3 py-2" type="button">接続テスト</button>
+        <button id="btn-clear-key" class="metal-btn text-xs px-3 py-2" type="button">キー削除</button>
+        <button id="btn-save-settings" class="metal-btn primary text-xs px-4 py-2" type="button">保存して閉じる</button>
+      </div>
+      <p class="font-dot text-[11px] text-[#8a84a8] mt-4 leading-relaxed">キーは Google AI Studio で取得できます。キーはこの端末のブラウザからのみ Google に直接送信され、他所へは送られません。</p>
+    </div>
+  </div>
+
+  <!-- ================= エンディング ================= -->
+  <div id="ending-modal" class="modal hidden">
+    <div class="modal-box ending-box w-full max-w-3xl">
+      <div class="font-pixel text-[10px] sm:text-xs text-center text-[#ffd23f] mb-3 blink-slow">2026年 ― 最終到達点</div>
+      <article class="textbook">
+        <div class="tb-head">
+          <span id="tb-title">新しい日本史 2026年版</span>
+          <span class="tb-stamp">時空省検定済</span>
+        </div>
+        <h3 id="tb-chapter" class="tb-chapter"></h3>
+        <div class="tb-body">
+          <figure class="tb-figure">
+            <img id="tb-image" alt="2026年の浮島">
+            <figcaption>図1　2026年の浮島（空撮）</figcaption>
+          </figure>
+          <p id="tb-text" class="tb-text"></p>
+        </div>
+        <div class="tb-keywords"><span class="tb-kw-label">重要語句</span><span id="tb-keywords"></span></div>
+        <table class="tb-table"><tbody id="tb-history"></tbody></table>
+        <div id="tb-params" class="tb-params"></div>
+      </article>
+      <div class="sns-box mt-4">
+        <div class="font-dot text-xs text-[#b8b0d0] mb-1">SNSに投稿してあなたの歴史を広めよう</div>
+        <textarea id="sns-text" class="sns-text" rows="3"></textarea>
+        <div class="flex flex-wrap gap-2 justify-end mt-2">
+          <button id="btn-copy" class="metal-btn primary text-xs px-4 py-2">📋 コピー</button>
+          <a id="btn-share-x" class="metal-btn text-xs px-4 py-2" target="_blank" rel="noopener">𝕏 で投稿</a>
+          <button class="metal-btn text-xs px-4 py-2 btn-restart">タイトルへ</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 文明崩壊 ================= -->
+  <div id="collapse-modal" class="modal hidden">
+    <div class="modal-box collapse-box max-w-lg w-full text-center">
+      <div class="font-pixel text-lg sm:text-2xl text-[#ff4a3a] glitch-text" data-text="GAME OVER">GAME OVER</div>
+      <div class="font-dot text-2xl mt-3 text-white">文明崩壊</div>
+      <div id="collapse-reason" class="font-dot text-lg text-[#ffb0a0] mt-2"></div>
+      <p id="collapse-text" class="font-dot text-sm text-[#e8dcd0] mt-4 leading-relaxed text-left"></p>
+      <textarea id="collapse-sns" class="sns-text mt-4" rows="2"></textarea>
+      <div class="flex flex-wrap gap-2 justify-center mt-3">
+        <button id="btn-copy-collapse" class="metal-btn text-xs px-4 py-2">📋 コピー</button>
+        <button id="btn-retry" class="metal-btn primary text-xs px-4 py-2">同じコースで再挑戦</button>
+        <button class="metal-btn text-xs px-4 py-2 btn-restart">タイトルへ</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+  <div class="scanlines"></div>
+
+  <script src="js/config.js"></script>
+  <script src="js/sprites.js"></script>
+  <script src="js/iso-map.js"></script>
+  <script src="js/oracle.js"></script>
+  <script src="js/logo.js"></script>
+  <script src="js/sfx.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
