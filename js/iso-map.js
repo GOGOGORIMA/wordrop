@@ -85,9 +85,11 @@
     normal: {},
     lush: { grass: ['#3fb03a', '#4cc246'], forest: ['#1f7a2a', '#2a8c30'], tree: ['#145a1c', '#2f9a34', '#6ce05a'] },
     sakura: { grass: ['#5aaa48', '#66b852'], forest: ['#4a9a3c', '#58a846'], tree: ['#c05a8a', '#f29ac0', '#ffd8ea'] },
-    desert: { grass: ['#d8b45a', '#e0c070'], forest: ['#c8a050', '#d0aa5a'], tree: ['#3a6a2a', '#5a8a3a', '#7aaa4a'], treeKind: 'cactus', sand: ['#ecd496', '#e4c884'], dirt: ['#c08a4a', '#946434'] },
+    desert: { grass: ['#d8b45a', '#e0c070'], forest: ['#c8a050', '#d0aa5a'], tree: ['#3a6a2a', '#5a8a3a', '#7aaa4a'], treeKind: 'cactus', sand: ['#ecd496', '#e4c884'], snow: ['#e8d4a4', '#dcc694'], rock: ['#b89a6a', '#c4a676'], dirt: ['#c08a4a', '#946434'] },
     frozen: { grass: ['#e8f0f6', '#d8e4ee'], forest: ['#c8d8e4', '#d0dee8'], tree: ['#2a4a4a', '#e8f2f8', '#ffffff'], sand: ['#dce8f0', '#cfdde8'], rock: ['#a8b8c8', '#b8c6d4'], dirt: ['#a8b8c8', '#8090a4'], under: ['#7a8a9c', '#6a7a8c', '#5a6a7c', '#4a5a6c'] },
-    wasteland: { grass: ['#7a6a52', '#6e604a'], forest: ['#5e5444', '#665a48'], tree: ['#2a2420', '#3a3228', '#4a4034'], treeKind: 'dead', sand: ['#8a7a60', '#7e6e56'], rock: ['#5a5650', '#66625a'], dirt: ['#6a5a44', '#4a3e30'], under: ['#4a4038', '#3e362e', '#322a24', '#28221c'] },
+    wasteland: { grass: ['#7a6a52', '#6e604a'], forest: ['#5e5444', '#665a48'], tree: ['#2a2420', '#3a3228', '#4a4034'], treeKind: 'dead', sand: ['#8a7a60', '#7e6e56'], rock: ['#4a3e3a', '#564842'], snow: ['#3a3030', '#443836'], dirt: ['#6a5a44', '#4a3e30'], under: ['#4a4038', '#3e362e', '#322a24', '#28221c'], lava: ['#ff5a1a', '#ffb030'] },
+    jungle: { grass: ['#2a8a2e', '#349a36'], forest: ['#1a6a22', '#207428'], tree: ['#0e4a18', '#1f7a28', '#4cc04a'], treeKind: 'palm', sand: ['#c8b878', '#bcaa6a'], dirt: ['#7a5a30', '#5a3e20'], extraTrees: 0.32 },
+    urban: { grass: ['#8a8a8e', '#94949a'], forest: ['#3a7a3a', '#448a40'], sand: ['#b0a890', '#a49c84'], rock: ['#76747a', '#807e84'], snow: ['#c8c8d0', '#d4d4dc'], dirt: ['#8a8070', '#6a6254'], under: ['#6a6660', '#5a5650', '#4a4640', '#3a3632'], paving: '#6c6c72' },
     cyber: { grass: ['#1a1a2e', '#20203a'], forest: ['#14142a', '#18182e'], tree: ['#a0f8ff', '#25e0ff', '#ff3ad0'], treeKind: 'neon', sand: ['#2e2e4e', '#34345a'], rock: ['#2a2a40', '#30304a'], snow: ['#5a5aa0', '#6464aa'], dirt: ['#30305a', '#20203e'], under: ['#1a1a30', '#22223c', '#141428', '#0e0e1e'], grid: '#25e0ff' },
     flooded: { grass: ['#4a9a40', '#56a84a'], flood: 3 },
   };
@@ -319,6 +321,8 @@
             const amt = Math.max(-0.22, Math.min(0.22, -slope * 0.07)) + (h - 4) * 0.012;
             col = shade(base, amt);
             if (L.grid && (x % 6 === 0 || y % 6 === 0)) col = L.grid;
+            if (L.paving && t !== FOREST && (x % 4 === 0 || y % 4 === 0)) col = L.paving;
+            if (L.lava && (t === ROCK || t === SNOW) && hash2(x, y, 13) < 0.22) col = L.lava[r < 0.5 ? 0 : 1];
           }
           g.fillStyle = col;
           g.fillRect(sx - 2, sy, 4, 1);
@@ -327,7 +331,10 @@
           if (water && r > 0.85) { g.fillStyle = sea[2]; g.fillRect(sx - 1, sy + 1, 2, 1); }
 
           // 木
-          if (t === FOREST && !water && !this.occ[i] && hash2(x, y, 7) < 0.5) this.drawTree(g, sx, sy + 2, L, hash2(x, y, 11));
+          if (!water && !this.occ[i]) {
+            const tr = hash2(x, y, 7);
+            if ((t === FOREST && tr < (L.extraTrees ? 0.85 : 0.5)) || (L.extraTrees && t === GRASS && tr < L.extraTrees)) this.drawTree(g, sx, sy + 2, L, hash2(x, y, 11));
+          }
         }
       }
       this.dirty = false;
@@ -344,6 +351,12 @@
           return;
         case 'dead':
           px(x, y - 6, 1, 6, c1); px(x - 2, y - 5, 2, 1, c1); px(x + 1, y - 4, 2, 1, c0); px(x - 1, y - 7, 1, 1, c2);
+          return;
+        case 'palm':
+          if (r < 0.4) break;
+          px(x, y - 7, 1, 7, '#6a4a24');
+          px(x - 3, y - 8, 7, 1, c1); px(x - 2, y - 9, 5, 1, c2); px(x - 3, y - 7, 1, 1, c0); px(x + 3, y - 7, 1, 1, c0);
+          px(x - 1, y - 6, 1, 1, '#8a5a20');
           return;
         case 'neon':
           px(x, y - 2, 1, 2, '#3a3a5a');
@@ -387,7 +400,29 @@
     setParams(p) { this.params = Object.assign({}, this.params, p); }
 
     /* ---------- 建物 ---------- */
+    findWaterSpot() {
+      const fl = this.flood();
+      let fallback = null;
+      for (let k = 0; k < 80; k++) {
+        const i = this.waterList[(this.rnd() * this.waterList.length) | 0];
+        if (i === undefined) break;
+        const x = i % N, y = (i / N) | 0;
+        if (this.occ[i]) continue;
+        let wet = 0, busy = false;
+        for (const [ox, oy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]]) {
+          const j = this.idx(x + ox, y + oy);
+          if (j >= 0 && this.isWaterTile(j)) wet++;
+          if (j >= 0 && this.occ[j]) busy = true;
+        }
+        if (busy) continue;
+        if (wet >= 6) return { x, y, i, h: Math.max(this.h[i], fl), water: true };
+        if (!fallback && wet >= 3) fallback = { x, y, i, h: Math.max(this.h[i], fl), water: true };
+      }
+      return fallback;
+    }
+
     findSpot(type) {
+      if (type === 'ship') { const w = this.findWaterSpot(); if (w) return w; }
       const def = WD.BUILDINGS[type] || { r: 1 };
       const rr = def.r;
       let best = null, bestScore = -1e9;
@@ -413,6 +448,8 @@
         if (type === 'castle' || type === 'tower' || type === 'statue' || type === 'temple' || type === 'pagoda') score += h0 * 0.9;
         if (type === 'portal' || type === 'ruins' || type === 'rocket') score = this.rnd() * 10;
         if (type === 'tree') score = -this.waterDist[i] * 0.1 + this.rnd() * 6;
+        if (type === 'moai' || type === 'ship') score = Math.hypot(x - 50, y - 50) * 0.3 - (type === 'ship' ? this.waterDist[i] : 0) + this.rnd() * 3;
+        if (type === 'mammoth' || type === 'yurt') score = this.rnd() * 8 - Math.abs(near - 4) * 0.3;
         score += this.rnd() * 2.5;
         if (score > bestScore) { bestScore = score; best = { x, y, i }; }
       }
@@ -425,33 +462,48 @@
       if (this.buildings.filter((b) => !b.removing).length > 150) return null;
       const spot = this.findSpot(type);
       if (!spot) return null;
-      const rr = WD.BUILDINGS[type].r;
-      const h0 = this.h[spot.i];
+      const rr = spot.water ? 0 : WD.BUILDINGS[type].r;
+      const h0 = spot.water ? spot.h : this.h[spot.i];
+      if (spot.water) this.occ[spot.i] = 1;
       // ポピュラス式：建設地をならす
-      for (let oy = -rr; oy <= rr; oy++) for (let ox = -rr; ox <= rr; ox++) {
+      else for (let oy = -rr; oy <= rr; oy++) for (let ox = -rr; ox <= rr; ox++) {
         const j = this.idx(spot.x + ox, spot.y + oy);
         if (j < 0) continue;
         this.occ[j] = 1;
         this.h[j] = h0;
         if (this.type[j] === FOREST) this.type[j] = GRASS;
       }
-      this.dirty = true;
-      const variant = (this.rnd() * 8) | 0;
+      if (!spot.water) this.dirty = true;
+      const variant = opts.variant !== undefined ? opts.variant : (this.rnd() * 8) | 0;
       const b = {
         type, x: spot.x, y: spot.y, h: h0, r: rr, variant,
         sprite: WD.Sprites.get(type, variant, this.course),
         fall: opts.instant ? 0 : -(240 + (opts.delay || 0) * 70 + this.rnd() * 40),
         vy: 0, alpha: 1, removing: false, sink: 0,
-        auto: !!opts.auto, label: opts.label || '', emitT: this.rnd(),
+        auto: !!opts.auto, symbol: !!opts.symbol, label: opts.label || '', emitT: this.rnd(),
       };
       this.buildings.push(b);
       return b;
     }
 
+    /* 時代（地域）の切替：以後に建つ建物の様式が変わる */
+    setCourse(region) { this.course = region; }
+
+    /* 前の時代のシンボル建築を崩して、新しい時代のシンボルを落とす */
+    switchSymbols(symbols, label, variantOf) {
+      this.buildings.filter((b) => b.symbol && !b.removing).forEach((b) => this.removeBuilding(b));
+      let delay = 0;
+      for (const [type, n] of symbols) for (let k = 0; k < n; k++) {
+        this.addBuilding(type, { delay: delay++, label, symbol: true, variant: variantOf ? variantOf(type, k) : undefined });
+      }
+    }
+
+    bh(b) { return Math.max(b.h, this.flood()); }
+
     removeBuilding(b) {
       if (b.removing) return;
       b.removing = true;
-      const p = this.screen(b.x, b.y, b.h);
+      const p = this.screen(b.x, b.y, this.bh(b));
       for (let k = 0; k < 14; k++) this.particles.push({ x: p.sx + (this.rnd() - 0.5) * 16, y: p.sy - this.rnd() * 10, vx: (this.rnd() - 0.5) * 20, vy: -10 - this.rnd() * 20, life: 1.2, max: 1.2, color: '#9a948a', size: 2, grav: 0 });
     }
 
@@ -621,7 +673,7 @@
           b.fall += b.vy * dt;
           if (b.fall >= 0) {
             b.fall = 0; b.vy = 0; landed++;
-            const p = this.screen(b.x, b.y, b.h);
+            const p = this.screen(b.x, b.y, this.bh(b));
             for (let q = 0; q < 8; q++) this.particles.push({ x: p.sx, y: p.sy + 2, vx: (this.rnd() - 0.5) * 50, vy: -this.rnd() * 18, life: 0.6, max: 0.6, color: '#d8ccb0', size: 1, grav: 40 });
           }
         }
@@ -633,11 +685,11 @@
               b.emitT -= dt;
               if (b.emitT <= 0) {
                 b.emitT = 0.25 + this.rnd() * 0.3;
-                const p = this.screen(b.x, b.y, b.h);
+                const p = this.screen(b.x, b.y, this.bh(b));
                 this.particles.push({ x: p.sx + e[0], y: p.sy + 2 + e[1], vx: 4 + this.rnd() * 4, vy: -8 - this.rnd() * 5, life: 2.5, max: 2.5, color: this.params.distortion > 60 ? '#b080c0' : '#c8c8c8', size: 2, grav: 0, grow: true });
               }
             } else if (e[2] === 'sparkle' && this.rnd() < dt * 8) {
-              const p = this.screen(b.x, b.y, b.h);
+              const p = this.screen(b.x, b.y, this.bh(b));
               this.particles.push({ x: p.sx + e[0] + (this.rnd() - 0.5) * 10, y: p.sy + 2 + e[1] + (this.rnd() - 0.5) * 16, vx: 0, vy: -6, life: 0.8, max: 0.8, color: this.rnd() < 0.5 ? '#ff80f0' : '#c060ff', size: 1, grav: 0 });
             }
           }
@@ -789,7 +841,7 @@
         g.fillRect(-10, 0, W + 20, H);
         for (const b of this.buildings) {
           if (b.removing || b.fall < 0) continue;
-          const p = this.screen(b.x, b.y, b.h);
+          const p = this.screen(b.x, b.y, this.bh(b));
           for (const l of b.sprite.lights) {
             g.fillStyle = l[2];
             g.globalAlpha = 0.25 * this.nightCur;
@@ -805,7 +857,7 @@
           if (b.removing || b.fall < 0) continue;
           for (const e of b.sprite.emit) {
             if (e[2] !== 'blink') continue;
-            const p = this.screen(b.x, b.y, b.h);
+            const p = this.screen(b.x, b.y, this.bh(b));
             g.fillStyle = 'rgba(255,40,40,0.35)'; g.fillRect(p.sx + e[0] - 1, p.sy + 2 + e[1] - 1, 3, 3);
             g.fillStyle = '#ff3030'; g.fillRect(p.sx + e[0], p.sy + 2 + e[1], 1, 1);
           }
@@ -911,7 +963,7 @@
 
     drawBuilding(g, b) {
       const s = b.sprite;
-      const p = this.screen(b.x, b.y, b.h);
+      const p = this.screen(b.x, b.y, this.bh(b));
       const x = p.sx - s.ax, y = p.sy + 2 - s.ay;
       if (b.fall < 0) {
         const k = Math.max(0, 1 + b.fall / 300);
@@ -999,7 +1051,7 @@
       for (const b of sorted) {
         if (b.removing || b.fall < 0) continue;
         const s = b.sprite;
-        const p = this.screen(b.x, b.y, b.h);
+        const p = this.screen(b.x, b.y, this.bh(b));
         const x = p.sx - s.ax, y = p.sy + 2 - s.ay;
         if (mx >= x && mx < x + s.w && my >= y && my < y + s.h) {
           const ctx = s.canvas.getContext('2d');
@@ -1016,6 +1068,7 @@
   }
 
   IsoWorld.W = W;
+  IsoWorld.palette = landPalette;
   IsoWorld.H = H;
   WD.IsoWorld = IsoWorld;
 })();

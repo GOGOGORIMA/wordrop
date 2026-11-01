@@ -463,6 +463,305 @@
         s.emit(cx, oy, 'sparkle');
       });
     },
+    moai(v) {
+      return make(16, 30, 24, (s) => {
+        const { cx, cy } = s;
+        s.box(cx, cy, 4, 2, '#7a756c', '#948e82', '#5e584e');
+        const by = cy - 2;
+        s.rect(cx - 2, by - 5, 5, 5, '#8a8478'); s.rect(cx + 2, by - 5, 1, 5, '#625c52');
+        s.rect(cx - 2, by - 16, 4, 11, '#948e82'); s.rect(cx + 1, by - 16, 1, 11, '#6a6458');
+        s.rect(cx - 2, by - 12, 4, 1, '#5a5448');
+        s.px(cx - 1, by - 10, '#5a5448'); s.px(cx - 1, by - 9, '#5a5448');
+        s.px(cx - 3, by - 13, '#7a746a'); s.px(cx - 3, by - 12, '#7a746a'); s.px(cx - 3, by - 11, '#7a746a');
+        s.rect(cx - 1, by - 7, 2, 1, '#5a5448');
+        if (v % 3 === 0) s.rect(cx - 2, by - 18, 4, 2, '#a04a30');
+      });
+    },
+    colosseum(v) {
+      return make(34, 30, 18, (s) => {
+        const { cx, cy } = s;
+        const rx = 13, ry = 6.5, hh = 9;
+        const wall = '#d8c09a', inner = '#a88a64', top = '#ecdcbc';
+        for (let x = -rx; x < rx; x++) {
+          const e = Math.sqrt(Math.max(0, 1 - ((x + 0.5) * (x + 0.5)) / (rx * rx)));
+          const yb = Math.round(cy - e * ry), yf = Math.round(cy + e * ry);
+          s.rect(cx + x, yb - hh, 1, hh + 1, inner);
+          s.px(cx + x, yb - hh, top);
+          s.rect(cx + x, yb + 1, 1, Math.max(0, yf - yb - hh), '#d8c088');
+        }
+        for (let x = -rx; x < rx; x++) {
+          const e = Math.sqrt(Math.max(0, 1 - ((x + 0.5) * (x + 0.5)) / (rx * rx)));
+          const yf = Math.round(cy + e * ry);
+          const h = x > 6 ? 5 : hh;
+          s.rect(cx + x, yf - h, 1, h + 1, x < 0 ? wall : '#bca07a');
+          s.px(cx + x, yf - h, top);
+          if ((x & 1) === 0) { s.px(cx + x, yf - 2, '#5a4430'); s.px(cx + x, yf - 5, '#5a4430'); if (h > 7) s.px(cx + x, yf - 8, '#5a4430'); }
+        }
+        s.light(cx - 2, cy - 1, '#ffb04a');
+      });
+    },
+    kofun(v) {
+      return make(34, 22, 12, (s) => {
+        const { cx, cy } = s;
+        for (let y = -7; y <= 7; y++) {
+          const w = Math.round(15 * Math.sqrt(1 - (y * y) / 56));
+          s.rect(cx - w, cy + Math.round(y / 1.4), w * 2, 1, '#3a78b8');
+        }
+        s.box(cx - 5, cy + 2, 5, 3, '#4e9a3a', '#5aac44', '#3a7a2a');
+        s.dome(cx + 4, cy - 1, 7, '#64b84c', '#4e9a3a', '#3a7a2a');
+        for (const [x, y] of [[-6, -2], [-3, 0], [3, -5], [6, -3], [1, -3]]) s.px(cx + x, cy + y, '#2a5a1e');
+        s.px(cx - 9, cy + 3, '#c87a4a'); s.px(cx - 8, cy + 4, '#c87a4a');
+      });
+    },
+    daibutsu(v) {
+      return make(36, 40, 30, (s) => {
+        const { cx, cy } = s;
+        s.box(cx, cy, 10, 2, '#b8b0a0', '#d0c8b8', '#9a9282');
+        s.box(cx, cy - 2, 9, 8, '#f0e8d8', '#f4ecdc', '#c8bca4');
+        for (let dx = -9; dx < 9; dx += 3) s.rect(cx + dx, s.front(cx, cy - 2, 9, dx) - 8, 1, 8, '#8a3a2a');
+        s.rect(cx - 3, cy + 1, 6, 4, '#2a1a10');
+        s.light(cx - 1, cy + 2, '#ffd040'); s.light(cx, cy + 2, '#ffd040'); s.light(cx - 1, cy + 3, '#e8b020'); s.light(cx, cy + 3, '#e8b020');
+        s.roof(cx, cy - 2, 11, 8, 6, '#5a5a66', '#3a3a46', { eave: '#1a1a22' });
+        s.px(cx - 4, cy - 17, '#e8c040'); s.px(cx + 3, cy - 17, '#e8c040');
+        s.roof(cx, cy - 14, 5, 3, 3, '#5a5a66', '#3a3a46');
+      });
+    },
+    ziggurat(v) {
+      return make(30, 32, 22, (s) => {
+        const { cx, cy } = s;
+        let y = cy;
+        for (const a of [10, 8, 6, 4]) { s.box(cx, y, a, 3, '#e0b878', '#ecc88a', '#a87e44'); y -= 3; }
+        for (let k = 0; k < 12; k++) s.px(cx - 1, cy + 4 - k, '#f8e0a8');
+        s.box(cx, y, 2, 4, '#3a6ab8', '#4a80d0', '#2a5090');
+        s.light(cx - 1, y - 1, '#ffd060');
+      });
+    },
+    maya(v) {
+      return make(28, 38, 28, (s) => {
+        const { cx, cy } = s;
+        let y = cy;
+        for (const a of [9, 7, 5, 3]) { s.box(cx, y, a, 4, '#a8a890', '#c0c0a6', '#82826a'); y -= 4; }
+        for (let k = 0; k < 17; k++) s.px(cx - 1, cy + 4 - k, '#e0e0c8');
+        s.box(cx, y, 3, 4, '#c0b8a0', '#d8d0b8', '#9a927a');
+        s.rect(cx - 1, y - 10, 2, 4, '#b8b098');
+        s.rect(cx - 1, y + 1, 2, 2, '#2a2018');
+        for (let k = 0; k < 8; k++) s.px(cx - 8 + ((k * 7) % 16), cy - (k * 3) % 12, '#4a7a3a');
+        s.light(cx, y - 1, '#ff8a3a');
+      });
+    },
+    ship(v) {
+      return make(26, 28, 20, (s) => {
+        const { cx, cy } = s;
+        const kind = v % 3;
+        const hull = kind === 2 ? ['#2a2a30', '#18181c'] : ['#8a5a2a', '#5a3418'];
+        s.rect(cx - 10, cy + 2, 20, 1, '#cfefff');
+        s.rect(cx - 8, cy - 2, 16, 2, hull[0]);
+        s.rect(cx - 7, cy, 14, 1, hull[1]);
+        s.rect(cx - 6, cy + 1, 12, 1, hull[1]);
+        s.px(cx - 9, cy - 3, hull[0]); s.px(cx + 8, cy - 3, hull[0]);
+        if (kind === 0) {
+          s.px(cx - 10, cy - 5, hull[0]); s.px(cx - 9, cy - 4, hull[0]);
+          s.rect(cx, cy - 16, 1, 14, '#4a2a14');
+          for (let r = 0; r < 8; r++) s.rect(cx - 5, cy - 14 + r, 11, 1, r % 2 ? '#c83a2a' : '#f0ead8');
+          for (let k = -6; k < 7; k += 2) s.px(cx + k, cy - 2, '#d8b040');
+        } else if (kind === 1) {
+          s.rect(cx - 3, cy - 18, 1, 16, '#4a2a14'); s.rect(cx + 3, cy - 14, 1, 12, '#4a2a14');
+          s.rect(cx - 7, cy - 16, 9, 6, '#f4f0e4'); s.rect(cx - 6, cy - 9, 7, 5, '#e8e2d0');
+          s.rect(cx + 1, cy - 12, 6, 5, '#f4f0e4');
+          s.px(cx - 3, cy - 19, '#c83a2a'); s.px(cx - 2, cy - 19, '#c83a2a');
+          s.light(cx + 6, cy - 3, '#ffd06a');
+        } else {
+          s.rect(cx - 1, cy - 9, 3, 7, '#3a3a40'); s.rect(cx - 1, cy - 9, 3, 1, '#c83a2a');
+          s.rect(cx - 6, cy - 14, 1, 12, '#3a2a1a'); s.rect(cx + 5, cy - 12, 1, 10, '#3a2a1a');
+          s.rect(cx - 8, cy - 11, 5, 4, '#d8d0c0');
+          s.emit(cx, cy - 10, 'smoke');
+          s.light(cx + 4, cy - 3, '#ffd06a');
+        }
+      });
+    },
+    guillotine(v) {
+      return make(16, 30, 24, (s) => {
+        const { cx, cy } = s;
+        s.box(cx, cy, 5, 3, '#8a5a30', '#a87040', '#6a4020');
+        const wood = '#6a3a1e';
+        s.rect(cx - 3, cy - 19, 1, 16, wood); s.rect(cx + 2, cy - 19, 1, 16, '#4a2810');
+        s.rect(cx - 3, cy - 20, 6, 1, wood);
+        s.rect(cx - 2, cy - 15, 4, 2, '#d0d8e0'); s.px(cx + 1, cy - 13, '#d0d8e0');
+        s.rect(cx - 2, cy - 7, 4, 2, '#5a3018'); s.px(cx - 1, cy - 6, '#1a0a04');
+      });
+    },
+    mosque(v) {
+      return make(36, 46, 34, (s) => {
+        const { cx, cy } = s;
+        const mn = (x) => {
+          s.rect(x, cy - 30, 2, 28, '#f0e8d8'); s.rect(x + 1, cy - 30, 1, 28, '#c8bca8');
+          s.rect(x - 1, cy - 22, 4, 1, '#c8bca8');
+          s.px(x, cy - 32, '#5a8ab8'); s.px(x + 1, cy - 32, '#3a6a98'); s.px(x, cy - 31, '#5a8ab8'); s.px(x + 1, cy - 31, '#3a6a98');
+          s.px(x, cy - 34, '#e8c040'); s.px(x, cy - 33, '#5a8ab8');
+          s.light(x, cy - 21, '#ffe08a');
+        };
+        mn(cx - 14);
+        s.box(cx, cy, 9, 6, '#e8dcc4', '#f4ecdc', '#c4b494', { rim: '#d8ccb0' });
+        s.dome(cx, cy - 8, 7, '#8ab4dc', '#5a8ab8', '#3a6a98');
+        s.rect(cx, cy - 17, 1, 3, '#e8c040');
+        s.dome(cx - 6, cy - 4, 3, '#8ab4dc', '#5a8ab8', '#3a6a98');
+        s.dome(cx + 6, cy - 4, 3, '#8ab4dc', '#5a8ab8', '#3a6a98');
+        for (let dx = -8; dx < 8; dx += 3) s.light(cx + dx, s.front(cx, cy, 9, dx) - 3, '#ffd88a');
+        mn(cx + 12);
+      });
+    },
+    duomo(v) {
+      return make(38, 48, 36, (s) => {
+        const { cx, cy } = s;
+        s.box(cx - 13, cy - 1, 2, 22, '#efe6d6', '#f6efe2', '#cfc4b0');
+        for (let k = 0; k < 22; k += 4) s.rect(cx - 15, s.front(cx - 13, cy - 1, 2, -2) - k, 4, 1, '#3a7a5a');
+        s.roof(cx - 13, cy - 1, 3, 22, 3, '#c0603a', '#8a3a20');
+        s.box(cx, cy, 9, 7, '#efe6d6', '#f6efe2', '#cfc4b0');
+        for (let dx = -9; dx < 9; dx += 3) s.rect(cx + dx, s.front(cx, cy, 9, dx) - 7, 1, 7, '#3a7a5a');
+        s.roof(cx, cy, 10, 7, 3, '#c0603a', '#8a3a20');
+        s.box(cx, cy - 9, 4, 3, '#efe6d6', '#f6efe2', '#cfc4b0');
+        s.dome(cx, cy - 12, 6, '#e0784a', '#c0603a', '#8a3a20');
+        for (const dx of [-4, -1, 2]) s.rect(cx + dx, cy - 17 + Math.abs(dx), 1, 6 - Math.abs(dx), '#f6efe2');
+        s.rect(cx - 1, cy - 22, 2, 4, '#f6efe2'); s.px(cx, cy - 24, '#e8c040'); s.px(cx, cy - 23, '#e8c040');
+        s.light(cx - 4, s.front(cx, cy, 9, -4) - 3, '#ffd88a');
+        s.light(cx + 3, s.front(cx, cy, 9, 3) - 3, '#ffd88a');
+      });
+    },
+    yurt(v) {
+      return make(18, 18, 12, (s) => {
+        const { cx, cy } = s;
+        const r = 6;
+        for (let dx = -r; dx < r; dx++) {
+          const adx = dx < 0 ? -dx - 1 : dx;
+          const yb = cy + Math.floor(Math.sqrt(Math.max(0, r * r - (adx + 0.5) * (adx + 0.5))) / 2);
+          s.rect(cx + dx, yb - 4, 1, 5, dx < 0 ? '#f4eee2' : '#cfc6b4');
+          s.px(cx + dx, yb - 2, '#c83a2a');
+        }
+        s.cone(cx, cy - 4, 6, 4, '#ece4d4', '#bcb2a0');
+        s.px(cx, cy - 8, '#8a5a30');
+        s.rect(cx - 1, cy + 1, 2, 2, '#e88a2a');
+        s.light(cx - 1, cy + 1, '#ffb050');
+      });
+    },
+    clocktower(v) {
+      return make(18, 54, 48, (s) => {
+        const { cx, cy } = s;
+        s.box(cx, cy, 4, 28, '#c8a870', '#dcbc84', '#a08454', { rim: '#e8d0a0' });
+        for (let k = 4; k < 22; k += 4) { s.px(cx - 2, s.front(cx, cy, 4, -2) - k, '#6a5434'); s.px(cx + 1, s.front(cx, cy, 4, 1) - k, '#6a5434'); }
+        const fy = cy - 24;
+        s.light(cx - 3, fy, '#fff6d8'); s.light(cx - 2, fy, '#fff6d8'); s.light(cx - 3, fy + 1, '#fff6d8'); s.light(cx - 2, fy + 1, '#fff6d8');
+        s.light(cx + 1, fy, '#fff6d8'); s.light(cx + 2, fy, '#fff6d8'); s.light(cx + 1, fy + 1, '#fff6d8'); s.light(cx + 2, fy + 1, '#fff6d8');
+        s.px(cx - 2, fy, '#2a2a2a'); s.px(cx + 1, fy, '#2a2a2a');
+        s.roof(cx, cy, 5, 28, 9, '#4a6a5a', '#2e4a3c');
+        s.rect(cx, cy - 42, 1, 3, '#e8c040');
+      });
+    },
+    palace(v) {
+      return make(36, 34, 24, (s) => {
+        const { cx, cy } = s;
+        s.box(cx, cy, 10, 3, '#e8e4dc', '#f4f2ec', '#c8c2b6');
+        for (let k = 0; k < 5; k++) s.rect(cx - 2, cy + 4 - k, 4, 1, k % 2 ? '#f4f2ec' : '#d8d2c6');
+        s.box(cx, cy - 3, 8, 5, '#b8302a', '#d8402a', '#90241e');
+        for (let dx = -7; dx < 8; dx += 3) s.light(cx + dx, s.front(cx, cy - 3, 8, dx) - 2, '#ffcf6a');
+        s.roof(cx, cy - 3, 10, 5, 3, '#f0c040', '#b8841a', { eave: '#6a4a10' });
+        s.box(cx, cy - 10, 5, 2, '#b8302a', '#d8402a', '#90241e');
+        s.roof(cx, cy - 10, 7, 2, 4, '#f0c040', '#b8841a', { ridge: '#fff0a0' });
+      });
+    },
+    chateau(v) {
+      return make(42, 30, 20, (s) => {
+        const { cx, cy } = s;
+        s.box(cx, cy, 12, 6, '#e8dcc0', '#f4ead2', '#c8b894', { rim: '#d8c8a4' });
+        for (let dx = -11; dx < 12; dx += 2) s.light(cx + dx, s.front(cx, cy, 12, dx) - 3, '#ffd870');
+        s.roof(cx, cy, 12, 6, 2, '#4a5a6a', '#34404c');
+        s.box(cx, cy + 1, 4, 9, '#efe4cc', '#f8f0dc', '#d0c2a0');
+        s.roof(cx, cy + 1, 5, 9, 4, '#4a5a6a', '#34404c', { ridge: '#e8c040' });
+        s.light(cx - 2, s.front(cx, cy + 1, 4, -2) - 5, '#ffd870'); s.light(cx + 1, s.front(cx, cy + 1, 4, 1) - 5, '#ffd870');
+        for (let x = -3; x <= 3; x += 2) s.px(cx + x, cy + 6, '#e8c040');
+      });
+    },
+    saloon(v) {
+      return make(22, 26, 18, (s) => {
+        const { cx, cy } = s;
+        s.box(cx, cy, 5, 7, '#a0703a', '#c08a4a', '#7a5228');
+        for (let dx = -5; dx < 0; dx++) s.rect(cx + dx, s.front(cx, cy, 5, dx) - 11, 1, 4, '#c8945a');
+        for (let dx = -5; dx < 0; dx++) s.px(cx + dx, s.front(cx, cy, 5, dx) - 9, '#f0dca0');
+        s.rect(cx - 4, s.front(cx, cy, 5, -4) - 3, 1, 3, '#3a2010');
+        s.light(cx - 2, s.front(cx, cy, 5, -2) - 3, '#ffcf6a');
+        s.light(cx + 2, s.front(cx, cy, 5, 2) - 4, '#ffcf6a');
+        s.light(cx + 3, s.front(cx, cy, 5, 3) - 4, '#ffcf6a');
+        s.px(cx + 5, cy - 1, '#5a3418'); s.px(cx + 5, cy - 2, '#5a3418');
+      });
+    },
+    mammoth(v) {
+      return make(22, 20, 15, (s) => {
+        const { cx, cy } = s;
+        const f = v % 2 ? 1 : -1;
+        const X = (x) => cx + x * f - (f < 0 ? 1 : 0);
+        const fur = '#7a5030', dk = '#5a3820', hi = '#9a6a40';
+        for (const lx of [-3, -1, 2, 4]) s.rect(X(lx), cy - 3, 1, 4, dk);
+        s.rect(Math.min(X(-4), X(5)), cy - 9, 10, 6, fur);
+        s.rect(Math.min(X(-3), X(4)), cy - 10, 8, 1, hi);
+        s.rect(Math.min(X(-4), X(5)), cy - 4, 10, 1, dk);
+        s.rect(Math.min(X(5), X(7)), cy - 10, 3, 5, fur);
+        s.px(X(6), cy - 9, '#1a0a04');
+        s.px(X(8), cy - 6, fur); s.px(X(8), cy - 5, fur); s.px(X(8), cy - 4, fur); s.px(X(9), cy - 3, fur);
+        s.px(X(7), cy - 5, '#f4f0e0'); s.px(X(8), cy - 7 + 4, '#f4f0e0'); s.px(X(9), cy - 4, '#f4f0e0');
+        s.px(X(-5), cy - 7, dk);
+      });
+    },
+    tulip(v) {
+      return make(28, 18, 9, (s) => {
+        const { cx, cy } = s;
+        const a = 10;
+        const cols = ['#e8302a', '#f0d020', '#f070b0', '#f4f4f4', '#ff8a2a'];
+        for (let dx = -a; dx < a; dx++) {
+          const yB = s.back(cx, cy, a, dx), yF = s.front(cx, cy, a, dx);
+          for (let y = yB; y <= yF; y++) {
+            let col = '#4a9a3a';
+            const row = y + (dx >> 1);
+            if (((row % 3) + 3) % 3 === 0) col = cols[(((dx >> 2) % cols.length) + cols.length) % cols.length];
+            if (y === yB || y === yF) col = '#6a4a28';
+            s.px(cx + dx, y, col);
+          }
+        }
+      });
+    },
+    wall(v) {
+      return make(36, 28, 16, (s) => {
+        const { cx, cy } = s;
+        const st = ['#a89e88', '#c0b6a0', '#867c68'];
+        for (let k = -3; k <= 3; k++) {
+          const x = cx + k * 4, y = cy + k * 2;
+          if (k === 0) {
+            s.box(x, y, 3, 10, st[0], st[1], st[2]);
+            s.roof(x, y, 4, 10, 3, '#7a4a2a', '#5a341c');
+            s.light(x - 1, y - 6, '#ffb04a');
+          } else {
+            s.box(x, y, 2, 6, st[0], st[1], st[2]);
+            s.px(x - 2, y - 7, st[1]); s.px(x, y - 7, st[0]);
+          }
+        }
+      });
+    },
+    goldhall(v) {
+      return make(26, 36, 26, (s) => {
+        const { cx, cy } = s;
+        for (let y = -5; y <= 5; y++) {
+          const w = Math.round(11 * Math.sqrt(1 - (y * y) / 30));
+          s.rect(cx - w, cy + 2 + Math.round(y / 1.3), w * 2, 1, '#3a78b8');
+        }
+        s.box(cx, cy, 6, 4, '#e8dcc4', '#f4ecdc', '#c4b494');
+        s.roof(cx, cy, 7, 4, 2, '#4a3a2a', '#2e2418');
+        s.box(cx, cy - 5, 5, 4, '#f0c838', '#ffe070', '#c89a18');
+        s.roof(cx, cy - 5, 6, 4, 2, '#4a3a2a', '#2e2418');
+        s.box(cx, cy - 10, 4, 4, '#f0c838', '#ffe070', '#c89a18');
+        s.roof(cx, cy - 10, 5, 4, 4, '#4a3a2a', '#2e2418');
+        s.px(cx, cy - 19, '#ffe070'); s.px(cx - 1, cy - 18, '#ffe070');
+        s.light(cx - 3, s.front(cx, cy - 5, 5, -3) - 2, '#fff2a0');
+        s.light(cx + 2, s.front(cx, cy - 10, 4, 2) - 2, '#fff2a0');
+      });
+    },
   };
 
   WD.Sprites = {

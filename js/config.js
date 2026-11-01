@@ -16,69 +16,28 @@ WD.PARAMS = [
   { key: 'distortion', name: '歪み', color: '#ff5adc', dark: '#6e1460' },
 ];
 
-WD.COURSES = {
-  japan: {
-    key: 'japan',
-    name: '日本史コース',
-    short: '日本史',
-    textbook: '新しい日本史',
-    place: 'この国',
-    initial: { population: 45, technology: 30, order: 55, distortion: 0 },
-    eras: [
-      {
-        year: -300, name: '弥生時代',
-        desc: '大陸から稲作と金属器が伝わり、ムラがクニへと変わりはじめた時代。',
-        who: '弥生のムラ人', ruler: 'クニの王',
-        preset: [['hut', 7], ['field', 4], ['fort', 1]],
-        env: { sky: 'clear', sea: 'blue', land: 'lush', weather: 'none' },
-      },
-      {
-        year: 794, name: '平安時代',
-        desc: '都が平安京に移り、貴族たちが和歌と権力闘争に明け暮れる時代。',
-        who: '平安貴族', ruler: '帝',
-        preset: [['shrine', 2], ['house', 4], ['pagoda', 1], ['field', 2]],
-        env: { sky: 'dusk', sea: 'blue', land: 'sakura', weather: 'petals' },
-      },
-      {
-        year: 1573, name: '戦国時代',
-        desc: '室町幕府が滅び、天下統一を狙う大名たちが覇を競う時代。',
-        who: '足軽たち', ruler: '戦国大名',
-        preset: [['castle', 1], ['house', 3], ['fort', 1], ['market', 1]],
-        env: { sky: 'clear', sea: 'blue', land: 'normal', weather: 'none' },
-      },
-    ],
-  },
-  world: {
-    key: 'world',
-    name: '世界史コース',
-    short: '世界史',
-    textbook: '新詳 世界史',
-    place: '世界',
-    initial: { population: 45, technology: 35, order: 50, distortion: 0 },
-    eras: [
-      {
-        year: -500, name: '古代ギリシア',
-        desc: 'ポリスが栄え、民主政と哲学が芽吹いた時代。',
-        who: 'アテネ市民', ruler: '僭主',
-        preset: [['temple', 2], ['house', 5], ['field', 3], ['statue', 1]],
-        env: { sky: 'clear', sea: 'emerald', land: 'normal', weather: 'none' },
-      },
-      {
-        year: 1000, name: '中世ヨーロッパ',
-        desc: '教会と封建領主が支配し、十字軍前夜の緊張が走る時代。',
-        who: '修道士と農奴', ruler: 'ローマ教皇',
-        preset: [['church', 1], ['castle', 1], ['house', 3], ['windmill', 2]],
-        env: { sky: 'storm', sea: 'dark', land: 'normal', weather: 'rain' },
-      },
-      {
-        year: 1492, name: '大航海時代',
-        desc: 'コロンブスが西へ漕ぎ出し、世界が一つにつながり始めた時代。',
-        who: '航海者', ruler: 'スペイン国王',
-        preset: [['market', 2], ['house', 3], ['windmill', 1], ['fort', 1]],
-        env: { sky: 'golden', sea: 'blue', land: 'normal', weather: 'none' },
-      },
-    ],
-  },
+/* ゲームモード（時代の抽選範囲） */
+WD.MODES = {
+  japan: { key: 'japan', name: '日本史モード', short: '日本史', textbook: '新しい日本史', place: 'この国', regions: ['japan'], note: '日本史20時代から抽選' },
+  world: { key: 'world', name: '世界史モード', short: '世界史', textbook: '新詳 世界史', place: '世界', regions: ['world'], note: '世界史30時代から抽選' },
+  chaos: { key: 'chaos', name: '全歴史カオスモード', short: '全歴史', textbook: '時空混成 総合歴史', place: 'この浮島', regions: ['japan', 'world'], note: '全50時代から抽選' },
+};
+WD.BASE_PARAMS = { population: 45, technology: 35, order: 50, distortion: 0 };
+WD.TIERS = [
+  { name: '第1期', label: '古代・黎明期' },
+  { name: '第2期', label: '中世・戦乱期' },
+  { name: '第3期', label: '近世・近代' },
+];
+
+/* バイオーム → 浮島の環境 */
+WD.BIOMES = {
+  temperate: { name: '温帯', icon: '🌳', env: { sky: 'clear', sea: 'blue', land: 'normal', weather: 'none' } },
+  desert:    { name: '砂漠', icon: '🏜', env: { sky: 'golden', sea: 'emerald', land: 'desert', weather: 'none' } },
+  snow:      { name: '雪原', icon: '❄', env: { sky: 'storm', sea: 'frozen', land: 'frozen', weather: 'snow' } },
+  jungle:    { name: '密林', icon: '🌴', env: { sky: 'clear', sea: 'emerald', land: 'jungle', weather: 'rain' } },
+  water:     { name: '水上・海洋', icon: '🌊', env: { sky: 'clear', sea: 'blue', land: 'flooded', weather: 'none' } },
+  urban:     { name: '都市・石造', icon: '🏛', env: { sky: 'dusk', sea: 'dark', land: 'urban', weather: 'none' } },
+  wasteland: { name: '荒野・火山', icon: '🌋', env: { sky: 'crimson', sea: 'dark', land: 'wasteland', weather: 'ash' } },
 };
 
 /* 箱庭に置ける建物。AI にもこの key を選ばせる */
@@ -107,11 +66,30 @@ WD.BUILDINGS = {
   tree:     { name: '森', r: 1 },
   ruins:    { name: '廃墟', r: 1 },
   portal:   { name: '時空の裂け目', r: 1 },
+  moai:     { name: 'モアイ像', r: 1 },
+  colosseum:{ name: 'コロッセオ', r: 2 },
+  kofun:    { name: '前方後円墳', r: 2 },
+  daibutsu: { name: '大仏殿', r: 2 },
+  ziggurat: { name: 'ジッグラト', r: 2 },
+  maya:     { name: '神殿ピラミッド', r: 2 },
+  ship:     { name: '船', r: 1 },
+  guillotine: { name: 'ギロチン', r: 1 },
+  mosque:   { name: 'モスク', r: 2 },
+  duomo:    { name: '大聖堂ドーム', r: 2 },
+  yurt:     { name: 'ゲル（移動式住居）', r: 1 },
+  clocktower: { name: '時計塔', r: 1 },
+  palace:   { name: '宮殿（中華）', r: 2 },
+  chateau:  { name: '宮殿（西洋）', r: 2 },
+  saloon:   { name: '酒場・カフェ', r: 1 },
+  mammoth:  { name: 'ナウマンゾウ', r: 1 },
+  tulip:    { name: 'チューリップ畑', r: 2 },
+  wall:     { name: '城壁', r: 2 },
+  goldhall: { name: '黄金の楼閣', r: 1 },
 };
 
 WD.SKIES = ['clear', 'dusk', 'night', 'storm', 'toxic', 'aurora', 'crimson', 'golden', 'cyber'];
 WD.SEAS = ['blue', 'emerald', 'dark', 'red', 'purple', 'frozen', 'golden', 'toxic'];
-WD.LANDS = ['normal', 'lush', 'desert', 'frozen', 'wasteland', 'cyber', 'flooded', 'sakura'];
+WD.LANDS = ['normal', 'lush', 'desert', 'frozen', 'wasteland', 'cyber', 'flooded', 'sakura', 'jungle', 'urban'];
 WD.WEATHERS = ['none', 'rain', 'snow', 'ash', 'petals', 'neon'];
 
 WD.WORD_POOL = [

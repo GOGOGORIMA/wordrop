@@ -5,6 +5,7 @@
 
   function fmtYear(y) { return y < 0 ? '紀元前' + -y + '年' : y + '年'; }
   WD.fmtYear = fmtYear;
+  WD.REGION_NAME = { japan: '日本史', world: '世界史' };
 
   const clampInt = (v, lo, hi) => {
     const n = Math.round(Number(v));
@@ -95,22 +96,33 @@
     return ['mystery', 'tech', 'commerce', 'culture', 'mystery', 'food'][h % 6];
   }
 
+  /* 時代固有の要素（hooks）と単語が絡み合う「バタフライ・エフェクト」の一文 */
+  const TWISTS = {
+    10: ['{hook}にも{w}が持ち込まれ、{who}を驚かせた。', '{ruler}は{w}を{hook}に取り入れるよう命じた。', '{hook}の場に{w}が現れ、記録係が筆を止めた。'],
+    50: ['{hook2}は{w}と融合し、史実とはまるで別の姿に変わった。', '本来の{hook2}は、{w}のせいで誰も知らない方向へ転がり始めた。', '{w}をめぐる争いが{hook2}のあり方を根底から揺るがした。'],
+    200: ['いまや{place}の{hook3}は「{w}」抜きでは語れない。', '{hook3}の名は忘れられ、代わりに{w}が{place}の象徴となった。', '教科書の「{hook3}」の項は、{w}の話で上書きされた。'],
+  };
+
   function fill(tpl, ctx) {
+    const e = ctx.era;
     return tpl
       .replace(/\{w\}/g, ctx.word)
-      .replace(/\{who\}/g, ctx.era.who)
-      .replace(/\{ruler\}/g, ctx.era.ruler)
-      .replace(/\{place\}/g, ctx.course.place);
+      .replace(/\{who\}/g, e.who)
+      .replace(/\{ruler\}/g, e.ruler)
+      .replace(/\{place\}/g, e.place)
+      .replace(/\{hook\}/g, e.hooks[0])
+      .replace(/\{hook2\}/g, e.hooks[1])
+      .replace(/\{hook3\}/g, e.hooks[2]);
   }
 
   function offlineDrop(ctx) {
     const cat = classify(ctx.word);
     const C = CATS[cat];
-    const r = rng(hashStr(ctx.word + '|' + ctx.eraIndex + '|' + ctx.course.key) ^ ((Math.random() * 1e6) | 0));
+    const r = rng(hashStr(ctx.word + '|' + ctx.era.id) ^ ((Math.random() * 1e6) | 0));
     const pick = (a) => a[(r() * a.length) | 0];
     const frac = [0.3, 0.3, 0.4];
     // 時代錯誤度：古い時代に現代語を落とすほど歪む
-    const anachro = (2 - ctx.eraIndex) * 3;
+    const anachro = (3 - ctx.era.tier) * 3 + (ctx.era.year < 0 ? 2 : 0);
     const timeline = WD.STAGES.map((st, i) => {
       const delta = {};
       for (const p of WD.PARAMS) {
@@ -124,7 +136,10 @@
         remove: (m.remove || []).map(([type, count]) => ({ type, count })),
         sky: m.sky || null, sea: m.sea || null, land: m.land || null, weather: m.weather || null,
       };
-      return { label: st.label, year: ctx.era.year + st.years, text: fill(pick(C['t' + st.years]), ctx), delta, map };
+      // 時代のシンボルを使った連鎖（その時代ならではの建物が増える）
+      if (i === 1 && ctx.era.symbols.length) map.add.push({ type: ctx.era.symbols[0][0], count: 1 });
+      const text = fill(pick(C['t' + st.years]), ctx) + fill(pick(TWISTS[st.years]), ctx);
+      return { label: st.label, year: ctx.era.year + st.years, text, delta, map };
     });
     return { title: fill(pick(C.titles), ctx), category: cat, timeline };
   }
@@ -146,16 +161,16 @@
   function offlineFinale(ctx) {
     const words = ctx.history.map((h) => h.word);
     const desc = describe(ctx.params);
-    const body = ctx.history.map((h, i) => {
-      const era = ctx.course.eras[i];
-      return fmtYear(era.year) + '、' + era.name + 'の' + ctx.course.place + 'に「' + h.word + '」がもたらされた。これにより' + h.title + 'が起こり、' + h.timeline[2].text.replace(/。$/, '') + '。';
-    }).join('') + 'こうして2026年の' + ctx.course.place + 'は、' + desc + 'として知られている。なお、史実との違いについて質問すると先生は目をそらす。';
+    const body = ctx.history.map((h) => {
+      const era = h.era;
+      return fmtYear(era.year) + '、' + era.name + 'の' + era.place + 'に「' + h.word + '」がもたらされた。これにより' + h.title + 'が起こり、' + h.timeline[2].text.replace(/。$/, '') + '。';
+    }).join('') + 'こうして2026年の' + ctx.mode.place + 'は、' + desc + 'として知られている。なお、史実との違いについて質問すると先生は目をそらす。';
     return {
-      title: ctx.course.textbook + ' 2026年版',
+      title: ctx.mode.textbook + ' 2026年版',
       chapter: '第' + (3 + ctx.history.length) + '章　「' + words.join('」「') + '」と浮島の近現代',
       body,
       keywords: ctx.history.map((h) => h.title).concat([desc]),
-      sns: '【WORDROP】' + ctx.course.short + 'に「' + words.join('」「') + '」を投下したら、2026年は「' + desc + '」になった…！ #WORDROP #歴史改変',
+      sns: '【WORDROP】' + ctx.history.map((h) => h.era.name + 'に「' + h.word + '」').join('、') + 'を投下したら、2026年は「' + desc + '」になった…！ #WORDROP #歴史改変',
     };
   }
 
@@ -201,30 +216,43 @@
 
   const typeList = TYPES.map((k) => k + '(' + WD.BUILDINGS[k].name + ')').join(', ');
 
+  function eraBlock(e) {
+    return `${e.name}（${e.sub}）／${e.yearLabel}／舞台: ${e.place}／${WD.REGION_NAME[e.region]}／風土: ${WD.BIOMES[e.biome].name}
+  - 時代背景: ${e.desc}
+  - 民衆: ${e.who}　権力者: ${e.ruler}
+  - この時代固有の要素: ${e.hooks.join('、')}`;
+  }
+
   function dropPrompt(ctx) {
     const p = ctx.params;
+    const e = ctx.era;
     const hist = ctx.history.length
-      ? ctx.history.map((h, i) => '- 第' + (i + 1) + '時代 ' + ctx.course.eras[i].name + 'に「' + h.word + '」→ ' + h.title).join('\n')
+      ? ctx.history.map((h, i) => '- ' + WD.TIERS[i].name + ' ' + h.era.name + '（' + h.era.yearLabel + '）に「' + h.word + '」→ ' + h.title + '：' + h.timeline[2].text).join('\n')
       : '- なし（最初の改変）';
-    const st = WD.STAGES.map((s) => s.label + '=' + fmtYear(ctx.era.year + s.years)).join(', ');
+    const st = WD.STAGES.map((s) => s.label + '=' + fmtYear(e.year + s.years) + (e.year + s.years > 2026 ? '（2026年より先の未来予言）' : '')).join(', ');
     return `あなたは歴史改変シミュレーションゲーム『WORDROP』のゲームマスターです。
-プレイヤーは歴史のある時点に「単語」を1つ投下します。その単語（概念・モノ）がその時代に突然存在したら歴史がどう変わるかを、10年後・50年後・200年後の3段階で、ユーモラスかつ史実の人物・出来事・地名を交えて描写してください。
+プレイヤーは歴史のある時点に「単語」を1つ投下します。その単語（概念・モノ）がその時代に突然存在したら歴史がどう変わるかを、10年後・50年後・200年後の3段階で描写してください。
 
-# 現在の状況
-- コース: ${ctx.course.short}
-- 時代: 第${ctx.eraIndex + 1}時代 ${fmtYear(ctx.era.year)} ${ctx.era.name}（${ctx.era.desc}）
-- 舞台は空に浮かぶ箱庭の島（この時代の${ctx.course.short}世界の縮図）
+# 今回の時代（プレイヤーが3択から選んだ時代）
+${eraBlock(e)}
+
+# 浮島の状況
+- 舞台は空に浮かぶ箱庭の島（ゲームモード: ${ctx.mode.name}）。過去の改変の影響は島に積み重なっている。
 - 文明パラメータ(0〜100): 人口${p.population} / 技術${p.technology} / 秩序${p.order} / 歪み${p.distortion}
-- これまでの改変:
+- これまでの改変（バタフライ・エフェクトの前提として必ず踏まえること）:
 ${hist}
 - 投下された単語: 「${ctx.word}」
 - 各段階の年: ${st}
 
-# ルール
-- 人口・技術・秩序のいずれかが0以下または100以上になると文明崩壊（ゲームオーバー）。単語の性質に忠実に、遠慮なく大胆に増減させてよい。
-- delta は各段階の増減値。population/technology/order は -25〜+25 の整数、distortion（時代錯誤による時空の歪み）は -10〜+25 の整数。
-- text は各段階90文字以内の日本語。前段階の出来事を受けて連鎖的に展開すること。
-- map は箱庭の島の見た目の変化。add/remove の type は次から選ぶ: ${typeList}。count は1〜3。
+# 描写のルール
+- 必ず「この時代固有の要素」（${e.hooks.join('、')}）や実在の人物・出来事・地名（${e.ruler}、${e.place}など）と単語を化学反応させ、この時代でしか起きないバタフライ・エフェクトを描くこと。他の時代でも通用する一般論は禁止。
+- 10年後→50年後→200年後と、前段階の出来事を受けて連鎖的に拡大していくこと。ユーモラスに、しかし史実の固有名詞はもっともらしく。
+- text は各段階100文字以内の日本語。
+
+# 数値・描画のルール
+- 人口・技術・秩序のいずれかが0以下または100以上になると文明崩壊（ゲームオーバー）。単語と時代の性質に忠実に、遠慮なく大胆に増減させてよい。
+- delta は各段階の増減値。population/technology/order は -25〜+25 の整数、distortion（時代錯誤による時空の歪み）は -10〜+25 の整数。時代にそぐわない単語ほど distortion を上げる。
+- map は箱庭の島の見た目の変化。add/remove の type は次から選ぶ: ${typeList}。count は1〜3。この時代らしい建物を優先すること。
 - sky は ${WD.SKIES.join('|')}、sea は ${WD.SEAS.join('|')}、land は ${WD.LANDS.join('|')}、weather は ${WD.WEATHERS.join('|')} から選ぶ。変化がなければ null。
 - title はこの改変を象徴する歴史用語風の見出し（20文字以内）。
 
@@ -243,12 +271,11 @@ ${hist}
   function finalePrompt(ctx) {
     const p = ctx.params;
     const hist = ctx.history.map((h, i) => {
-      const era = ctx.course.eras[i];
-      return `- 第${i + 1}時代 ${fmtYear(era.year)} ${era.name}に「${h.word}」を投下 →「${h.title}」: ${h.timeline.map((t) => t.label + ': ' + t.text).join(' / ')}`;
+      return `- ${WD.TIERS[i].name}: ${h.era.name}（${h.era.sub}、${h.era.yearLabel}、${h.era.place}）に「${h.word}」を投下 →「${h.title}」: ${h.timeline.map((t) => t.label + ': ' + t.text).join(' / ')}`;
     }).join('\n');
     return `あなたは歴史改変シミュレーションゲーム『WORDROP』のゲームマスターです。
-プレイヤーは${ctx.course.short}の3つの時代に単語を投下し、文明を崩壊させずに2026年まで生き延びました。
-改変された歴史の結果として、2026年の中学・高校の歴史教科書に載っている1ページを書いてください。
+プレイヤーは「${ctx.mode.name}」で、プレイヤー自身が選んだ3つの時代に単語を投下し、文明を崩壊させずに2026年まで生き延びました。
+改変された歴史の結果として、2026年の中学・高校の歴史教科書に載っている1ページを書いてください。3つの時代の改変が時空を越えて因果でつながっているように描くこと。
 
 # 改変の記録
 ${hist}
@@ -258,11 +285,11 @@ ${hist}
 
 # 出力形式（このJSONのみを出力）
 {
-  "title": "教科書名（例: ${ctx.course.textbook} 2026年版）",
+  "title": "教科書名（例: ${ctx.mode.textbook} 2026年版）",
   "chapter": "章題（30文字以内）",
   "body": "教科書本文。真面目な教科書の文体で、改変の連鎖と2026年の姿を260文字程度で。最後にくすっと笑える一文を。",
   "keywords": ["重要語句を3〜5個"],
-  "sns": "SNS投稿用の文章（120文字以内、投下した3単語を含め、#WORDROP #歴史改変 のハッシュタグ付き）"
+  "sns": "SNS投稿用の文章（120文字以内、選んだ時代と投下した3単語を含め、#WORDROP #歴史改変 のハッシュタグ付き）"
 }`;
   }
 

@@ -27,9 +27,10 @@
 
       <div id="title-menu" class="hidden mt-8 w-full max-w-sm">
         <div class="menu-frame p-4 sm:p-5">
-          <p class="font-pixel text-[10px] text-[#ffd23f] mb-3">SELECT COURSE</p>
-          <button class="menu-item" data-course="japan"><span class="cursor">▶</span>日本史コース<small>弥生 → 平安 → 戦国</small></button>
-          <button class="menu-item" data-course="world"><span class="cursor">▶</span>世界史コース<small>古代ギリシア → 中世 → 大航海</small></button>
+          <p class="font-pixel text-[10px] text-[#ffd23f] mb-3">SELECT MODE</p>
+          <button class="menu-item" data-mode="japan"><span class="cursor">▶</span>日本史モード<small>旧石器から大正ロマンまで、日本史20時代から抽選</small></button>
+          <button class="menu-item" data-mode="world"><span class="cursor">▶</span>世界史モード<small>古代エジプトから冷戦まで、世界史30時代から抽選</small></button>
+          <button class="menu-item" data-mode="chaos"><span class="cursor">▶</span>全歴史カオスモード<small>日本も世界も入り乱れる全50時代から抽選</small></button>
 
           <div class="mt-4 pt-4 border-t-2 border-dashed border-[#5a5070] flex items-center justify-between gap-3">
             <button id="btn-settings" class="metal-btn text-xs px-3 py-2">⚙ API設定</button>
@@ -110,6 +111,22 @@
     </div>
   </section>
 
+  <!-- ================= 時代選択（ドラフト） ================= -->
+  <div id="draft-modal" class="modal draft-modal hidden">
+    <div class="modal-box draft-box w-full max-w-5xl">
+      <div class="text-center">
+        <div id="draft-tier" class="font-pixel text-[10px] text-[#9fe8ff]">PERIOD 1 / 3</div>
+        <h2 id="draft-title" class="font-dot text-xl sm:text-2xl text-[#ffd23f] mt-2 hud-shadow"></h2>
+        <p id="draft-sub" class="font-dot text-xs sm:text-sm text-[#d8d0f0] mt-1"></p>
+      </div>
+      <div id="draft-cards" class="draft-cards mt-4"></div>
+      <div class="flex flex-wrap items-center justify-between gap-3 mt-4">
+        <p class="font-dot text-[11px] text-[#9a94b8]">キー操作：1〜3で選択 / Rで引き直し。選んだ時代の補正が文明パラメータに加わります。</p>
+        <button id="btn-reroll" class="metal-btn text-xs px-4 py-2" type="button">🎲 別の時代を引き直す（残り1回）</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ================= API設定モーダル ================= -->
   <div id="settings-modal" class="modal hidden">
     <div class="modal-box menu-frame max-w-md w-full">
@@ -188,6 +205,7 @@
   <div class="scanlines"></div>
 
   <script src="js/config.js"></script>
+  <script src="js/eras.js"></script>
   <script src="js/sprites.js"></script>
   <script src="js/iso-map.js"></script>
   <script src="js/oracle.js"></script>
