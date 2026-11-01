@@ -80,11 +80,9 @@ body { font-family: 'DotGothic16', sans-serif; -webkit-font-smoothing: none; }
 
 /* ---------- メイン画面レイアウト ---------- */
 .game-grid { display: grid; grid-template-columns: minmax(0, 1fr) 400px; }
-@media (max-width: 1024px) {
-  body { overflow: auto; }
-  #game-screen { position: static; }
-  .game-grid { grid-template-columns: 1fr; height: auto; }
-  .map-pane { height: 62vw; min-height: 260px; }
+@media (max-width: 1024px) and (min-aspect-ratio: 1/1) and (max-height: 600px) {
+  .game-grid { grid-template-columns: minmax(0, 1fr) 340px; }
+  .panel { overflow-y: auto; }
 }
 .map-pane {
   display: flex; align-items: center; justify-content: center; overflow: hidden;
@@ -121,7 +119,7 @@ body { font-family: 'DotGothic16', sans-serif; -webkit-font-smoothing: none; }
   position: relative; padding: 18px 16px 16px; min-height: 0; overflow: hidden;
   border-left: 6px solid #1a1a22;
 }
-@media (max-width: 1024px) { .panel { border-left: none; border-top: 6px solid #1a1a22; overflow: visible; } }
+
 .stone {
   background-color: var(--stone-2);
   background-image:
@@ -323,4 +321,114 @@ body { font-family: 'DotGothic16', sans-serif; -webkit-font-smoothing: none; }
   .era-name, .era-sub, .era-desc, .era-biome { grid-column: 2; }
   .era-name { font-size: 17px; }
   .era-desc { font-size: 11px; }
+}
+
+/* ---------- パネル内の間隔 ---------- */
+.panel > .slate { margin-top: 10px; }
+.params { display: grid; gap: 8px; margin-top: 8px; }
+.log { margin-top: 8px; min-height: 120px; }
+.cards { margin-top: 12px; }
+
+/* ---------- 3時代ステップバー ---------- */
+.steps { display: flex; align-items: stretch; gap: 3px; margin-top: 10px; }
+.step {
+  flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 4px 4px 5px; text-align: center; line-height: 1.25;
+  background: #1e1f26; border: 2px solid #0e0e14; box-shadow: inset 1px 1px 0 rgba(255,255,255,0.08);
+}
+.step-num { font-size: 12px; color: #8a8070; }
+.step-era { font-size: 12px; color: #c8c0b0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.step-word { font-size: 11px; color: #8a8070; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.step.done { background: linear-gradient(#3a3218, #241f10); border-color: #6a5a20; }
+.step.done .step-num, .step.done .step-era { color: var(--gold); }
+.step.done .step-word { color: #ffb0f0; }
+.step.current { background: linear-gradient(#5a2a14, #3a1a0c); border-color: #ff8a3a; box-shadow: 0 0 0 1px #ff8a3a, inset 1px 1px 0 rgba(255,255,255,0.15); }
+.step.current .step-num, .step.current .step-era { color: #fff; }
+.step.current .step-word { color: #ffb070; animation: blink 1.2s steps(1) infinite; }
+.step.dead { background: linear-gradient(#5a0a0a, #300404); border-color: #ff3a2a; }
+.step.dead .step-era, .step.dead .step-num { color: #ffb0a0; }
+.step.dead .step-word { color: #ff5a4a; }
+.step-arrow { align-self: center; font-size: 9px; color: #6a6458; flex: none; }
+
+/* ---------- 滅亡調査報告書 ---------- */
+.report {
+  position: relative; background: #ece4d6; color: #2a1a14; padding: 18px 22px; font-family: 'DotGothic16', serif;
+  border: 2px solid #7a2a20; border-top: 8px solid #c0201a;
+  background-image: linear-gradient(rgba(120,40,20,0.05) 1px, transparent 1px); background-size: 100% 26px;
+  box-shadow: inset 0 0 50px rgba(120,40,20,0.25);
+}
+.rp-head { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: #7a2a20; border-bottom: 3px double #7a2a20; padding-bottom: 6px; }
+.rp-title { font-size: clamp(20px, 3vw, 28px); margin: 10px 0 6px; letter-spacing: 0.2em; }
+.rp-reason { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 18px; color: #c0201a; }
+.rp-label { font-size: 12px; background: #c0201a; color: #fff; padding: 1px 8px; }
+.rp-stamp {
+  position: absolute; top: 44px; right: 22px; transform: rotate(-12deg);
+  border: 4px double #c0201a; color: #c0201a; font-size: 30px; padding: 2px 10px; letter-spacing: 0.1em;
+  opacity: 0.85; mix-blend-mode: multiply;
+}
+.rp-body { display: flex; gap: 16px; align-items: flex-start; margin-top: 12px; }
+@media (max-width: 640px) { .rp-body { flex-direction: column; } }
+.rp-figure { flex: none; width: 46%; max-width: 320px; }
+@media (max-width: 640px) { .rp-figure { width: 100%; max-width: none; } }
+.rp-figure img { width: 100%; border: 2px solid #2a1a14; image-rendering: pixelated; background: #000; filter: sepia(0.25) contrast(1.05); }
+.rp-figure figcaption { font-size: 11px; margin-top: 4px; color: #7a4a3a; }
+.rp-text-wrap { flex: 1; min-width: 0; }
+.rp-sub { display: inline-block; font-size: 12px; border-bottom: 2px solid #c0201a; margin-bottom: 4px; }
+.rp-text { font-size: 13px; line-height: 1.8; }
+.rp-trigger { color: #5a1a10; background: rgba(192,32,26,0.08); padding: 4px 8px; border-left: 3px solid #c0201a; }
+.rp-table { width: 100%; font-size: 12px; border-collapse: collapse; }
+.rp-table td { border: 1px solid #b89a8a; padding: 3px 6px; }
+.rp-table td:first-child { background: #e0cfc0; white-space: nowrap; width: 1%; }
+.rp-table tr.hot td { color: #c0201a; font-weight: bold; }
+.rp-params { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; font-size: 12px; }
+.rp-params b { font-family: 'Press Start 2P', monospace; font-size: 10px; }
+.rp-params .broken { color: #c0201a; animation: blink 0.8s steps(1) infinite; }
+.rp-foot { font-size: 11px; color: #7a4a3a; margin-top: 10px; }
+.collapse-box .sns-box { text-align: left; }
+.img-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding-top: 10px; border-top: 2px dashed #3a3450; }
+
+/* ---------- スマホ縦画面：1画面に収める ---------- */
+@media (max-width: 760px), (max-width: 1024px) and (orientation: portrait) {
+  #game-screen { height: 100vh; height: 100dvh; }
+  .game-grid { display: flex; flex-direction: column; height: 100%; }
+  .map-pane { flex: none; height: 33vh; height: 33dvh; min-height: 0; }
+  .map-frame { border-width: 2px; box-shadow: 0 0 0 2px #6a6c72; }
+  #hud-year { font-size: 12px; }
+  #hud-era { font-size: 11px; margin-top: 2px; }
+  #hud-source { font-size: 6px; bottom: 4px; left: 6px; }
+  .map-pane .top-2 { top: 4px; }
+  .era-banner { padding: 6px; top: 30%; }
+  .era-banner .b1 { font-size: 8px; } .era-banner .b2 { font-size: 18px; margin-top: 2px; } .era-banner .b3 { display: none; }
+  .panel { flex: 1 1 auto; min-height: 0; padding: 6px 8px 8px; border-left: none; border-top: 4px solid #1a1a22; overflow: hidden; }
+  .rivet { display: none; }
+  .panel header .font-pixel { font-size: 10px; }
+  #panel-course { display: none; }
+  .icon-btn { width: 24px; height: 24px; font-size: 12px; }
+  .steps { margin-top: 4px; gap: 2px; }
+  .step { padding: 2px 3px; flex-direction: row; gap: 3px; }
+  .step-num { font-size: 10px; flex: none; }
+  .step-era { font-size: 10px; flex: 0 1 auto; }
+  .step-word { font-size: 10px; flex: 0 1 auto; }
+  .step-arrow { font-size: 7px; }
+  .panel > .slate { margin-top: 5px; padding: 5px 7px 6px; border-width: 2px; }
+  .params-slate .slate-title { display: none; }
+  .params { grid-template-columns: 1fr 1fr; gap: 4px 10px; margin-top: 0; }
+  .param { grid-template-columns: 26px 1fr 22px; gap: 4px; }
+  .param-name { font-size: 11px; }
+  .param-val { font-size: 8px; }
+  .bar { height: 9px; border-width: 1px; }
+  .bar-fill::before { top: 1px; height: 2px; }
+  .bar .zone { top: -2px; bottom: -2px; }
+  .delta-pop { right: 26px; top: -8px; font-size: 8px; }
+  .log-slate .slate-title { font-size: 10px; }
+  .log { font-size: 11.5px; line-height: 1.5; margin-top: 4px; min-height: 40px; }
+  .word-input { padding: 5px 8px; font-size: 16px; }
+  .drop-btn { font-size: 12px; padding: 3px 10px; }
+  .next-btn { padding: 8px; font-size: 14px; }
+  .cards { margin-top: 6px; gap: 8px; }
+  .card { width: auto; flex: 1 1 0; max-width: 110px; height: 54px; }
+  .card .vert { writing-mode: horizontal-tb; font-size: 13px; max-height: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90%; }
+  .card .vert.small { font-size: 11px; }
+  .card .num { font-size: 9px; top: 2px; left: 4px; }
+  .card .seal { width: 8px; height: 8px; bottom: 4px; right: 4px; }
 }

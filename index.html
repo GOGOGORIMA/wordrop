@@ -77,26 +77,28 @@
             <div id="panel-course" class="font-dot text-[11px] text-[#d8d0bc] mt-1">日本史コース</div>
           </div>
           <div class="flex items-center gap-2">
-            <div id="turn-pips" class="flex gap-1"></div>
             <button id="btn-mute" class="metal-btn icon-btn" title="サウンド">♪</button>
             <button id="btn-settings-2" class="metal-btn icon-btn" title="設定">⚙</button>
           </div>
         </header>
 
+        <!-- 3時代の進行ステップバー -->
+        <nav id="steps" class="steps" aria-label="時代の進行状況"></nav>
+
         <!-- パラメータ -->
-        <div class="slate mt-3">
+        <div class="slate params-slate">
           <div class="slate-title">文明パラメータ</div>
-          <div id="params" class="space-y-2 mt-2"></div>
+          <div id="params" class="params"></div>
         </div>
 
         <!-- 激変ログ -->
-        <div class="slate mt-3 flex-1 min-h-0 flex flex-col">
+        <div class="slate log-slate flex-1 min-h-0 flex flex-col">
           <div class="slate-title flex justify-between"><span>歴史の激変ログ</span><span class="text-[#8a8070]">10年後 → 50年後 → 200年後</span></div>
-          <div id="log" class="log flex-1 min-h-[120px] overflow-y-auto mt-2 pr-1"></div>
+          <div id="log" class="log flex-1 overflow-y-auto pr-1"></div>
         </div>
 
         <!-- 投下フォーム -->
-        <div class="slate mt-3">
+        <div class="slate input-slate">
           <form id="drop-form" class="flex gap-2 items-stretch" autocomplete="off">
             <div class="relative flex-1">
               <input id="word-input" type="text" maxlength="15" placeholder="単語を入力（15文字以内）" class="word-input w-full">
@@ -105,7 +107,7 @@
             <button id="btn-drop" type="submit" class="drop-btn">歴史に<br>投下</button>
           </form>
           <button id="btn-next" type="button" class="next-btn hidden w-full">次の時代へ ▶</button>
-          <div id="cards" class="cards mt-3"></div>
+          <div id="cards" class="cards"></div>
         </div>
       </aside>
     </div>
@@ -177,26 +179,75 @@
         <div class="font-dot text-xs text-[#b8b0d0] mb-1">SNSに投稿してあなたの歴史を広めよう</div>
         <textarea id="sns-text" class="sns-text" rows="3"></textarea>
         <div class="flex flex-wrap gap-2 justify-end mt-2">
-          <button id="btn-copy" class="metal-btn primary text-xs px-4 py-2">📋 コピー</button>
-          <a id="btn-share-x" class="metal-btn text-xs px-4 py-2" target="_blank" rel="noopener">𝕏 で投稿</a>
+          <button id="btn-copy" class="metal-btn text-xs px-4 py-2">📋 文章をコピー</button>
+          <a id="btn-share-x" class="metal-btn primary text-xs px-4 py-2" target="_blank" rel="noopener">𝕏 で投稿</a>
+        </div>
+          <div class="img-tools mt-3">
+            <span class="font-dot text-[11px] text-[#b8b0d0]">🖼 教科書と空撮を1枚の画像に（Xの投稿に添付できます）</span>
+            <div class="flex flex-wrap gap-2 justify-end">
+              <button class="metal-btn text-xs px-3 py-2 btn-img-save" data-result="clear">💾 画像を保存</button>
+              <button class="metal-btn text-xs px-3 py-2 btn-img-copy" data-result="clear">📋 画像をコピー</button>
+              <button class="metal-btn text-xs px-3 py-2 btn-img-share hidden" data-result="clear">📤 画像付きで共有</button>
+            </div>
+          </div>
+        <div class="flex justify-end mt-3">
           <button class="metal-btn text-xs px-4 py-2 btn-restart">タイトルへ</button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- ================= 文明崩壊 ================= -->
+  <!-- ================= 文明崩壊（滅亡調査報告書） ================= -->
   <div id="collapse-modal" class="modal hidden">
-    <div class="modal-box collapse-box max-w-lg w-full text-center">
-      <div class="font-pixel text-lg sm:text-2xl text-[#ff4a3a] glitch-text" data-text="GAME OVER">GAME OVER</div>
-      <div class="font-dot text-2xl mt-3 text-white">文明崩壊</div>
-      <div id="collapse-reason" class="font-dot text-lg text-[#ffb0a0] mt-2"></div>
-      <p id="collapse-text" class="font-dot text-sm text-[#e8dcd0] mt-4 leading-relaxed text-left"></p>
-      <textarea id="collapse-sns" class="sns-text mt-4" rows="2"></textarea>
-      <div class="flex flex-wrap gap-2 justify-center mt-3">
-        <button id="btn-copy-collapse" class="metal-btn text-xs px-4 py-2">📋 コピー</button>
-        <button id="btn-retry" class="metal-btn primary text-xs px-4 py-2">同じコースで再挑戦</button>
-        <button class="metal-btn text-xs px-4 py-2 btn-restart">タイトルへ</button>
+    <div class="modal-box collapse-box w-full max-w-3xl">
+      <div class="text-center">
+        <div class="font-pixel text-lg sm:text-2xl text-[#ff4a3a] glitch-text">GAME OVER</div>
+        <div class="font-dot text-xs text-[#ffb0a0] mt-2 tracking-[0.3em]">― 文明崩壊を確認 ―</div>
+      </div>
+      <article class="report mt-4">
+        <div class="rp-stamp">滅亡</div>
+        <div class="rp-head">
+          <span>時空省 歴史改変事故調査委員会</span>
+          <span id="rp-no">報告書 第0000号</span>
+        </div>
+        <h3 class="rp-title">滅亡調査報告書</h3>
+        <div class="rp-reason"><span class="rp-label">崩壊原因</span><span id="collapse-reason"></span></div>
+        <div class="rp-body">
+          <figure class="rp-figure">
+            <img id="rp-image" alt="崩壊直後の浮島">
+            <figcaption>証拠写真1　崩壊直後の浮島（空撮）</figcaption>
+          </figure>
+          <div class="rp-text-wrap">
+            <div class="rp-sub">調査結果</div>
+            <p id="collapse-text" class="rp-text"></p>
+            <div class="rp-sub mt-3">直接の引き金</div>
+            <p id="rp-trigger" class="rp-text rp-trigger"></p>
+          </div>
+        </div>
+        <div class="rp-sub mt-3">改変の経緯</div>
+        <table class="rp-table"><tbody id="rp-history"></tbody></table>
+        <div id="rp-params" class="rp-params"></div>
+        <p class="rp-foot">※本報告書は再発防止を目的として作成された。単語の投下は計画的に。</p>
+      </article>
+      <div class="sns-box mt-4">
+        <div class="font-dot text-xs text-[#ffb0a0] mb-1">滅びの記録をSNSでシェアしよう</div>
+        <textarea id="collapse-sns" class="sns-text" rows="3"></textarea>
+        <div class="flex flex-wrap gap-2 justify-end mt-2">
+          <button id="btn-copy-collapse" class="metal-btn text-xs px-4 py-2">📋 文章をコピー</button>
+          <a id="btn-share-x-collapse" class="metal-btn primary text-xs px-4 py-2" target="_blank" rel="noopener">𝕏 で投稿</a>
+        </div>
+          <div class="img-tools mt-3">
+            <span class="font-dot text-[11px] text-[#b8b0d0]">🖼 報告書と空撮を1枚の画像に（Xの投稿に添付できます）</span>
+            <div class="flex flex-wrap gap-2 justify-end">
+              <button class="metal-btn text-xs px-3 py-2 btn-img-save" data-result="collapse">💾 画像を保存</button>
+              <button class="metal-btn text-xs px-3 py-2 btn-img-copy" data-result="collapse">📋 画像をコピー</button>
+              <button class="metal-btn text-xs px-3 py-2 btn-img-share hidden" data-result="collapse">📤 画像付きで共有</button>
+            </div>
+          </div>
+        <div class="flex flex-wrap gap-2 justify-end mt-3">
+          <button id="btn-retry" class="metal-btn primary text-xs px-4 py-2">同じモードで再挑戦</button>
+          <button class="metal-btn text-xs px-4 py-2 btn-restart">タイトルへ</button>
+        </div>
       </div>
     </div>
   </div>
@@ -209,6 +260,7 @@
   <script src="js/sprites.js"></script>
   <script src="js/iso-map.js"></script>
   <script src="js/oracle.js"></script>
+  <script src="js/share-image.js"></script>
   <script src="js/logo.js"></script>
   <script src="js/sfx.js"></script>
   <script src="js/main.js"></script>

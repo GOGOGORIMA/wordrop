@@ -183,6 +183,9 @@
     game.usedWords = new Set();
     game.era = null;
     game.phase = 'idle';
+    game.collapsed = false;
+    game.currentWord = '';
+    game.result = null;
     game.world = new WD.IsoWorld($('world'), {
       course: 'japan',
       onImpact: () => Sfx.play('impact'),
@@ -211,9 +214,11 @@
   function openDraft(tier) {
     game.tier = tier;
     game.phase = 'draft';
+    game.currentWord = '';
+    game.era = null;
     game.rerolls = 1;
     game.draft = WD.drawEras(game.mode.key, tier + 1, 3, game.history.map((h) => h.era.id));
-    renderPips();
+    renderSteps();
     renderDraft();
     $('draft-modal').classList.remove('hidden');
     Sfx.play('select');
@@ -355,7 +360,7 @@
     logEra(era);
     const mods = WD.PARAMS.filter((p) => applied[p.key]).map((p) => p.name + (applied[p.key] > 0 ? '+' : '') + applied[p.key]).join(' ');
     if (mods) logEl('log-note', '時代補正：' + esc(mods));
-    renderPips();
+    renderSteps();
     dealCards();
     $('drop-form').classList.remove('hidden');
     $('btn-next').classList.add('hidden');
@@ -375,16 +380,36 @@
     el.classList.remove('hidden');
   }
 
-  function renderPips() {
-    const el = $('turn-pips');
+  /* ---------- 3時代の進行ステップバー ---------- */
+  function renderSteps() {
+    const el = $('steps');
     el.innerHTML = '';
+    const nums = ['①', '②', '③'];
     for (let k = 0; k < 3; k++) {
-      const d = document.createElement('span');
-      d.style.cssText = 'width:12px;height:12px;border:2px solid #000;display:inline-block;';
-      d.style.background = k < game.history.length ? '#ffd23f' : k === game.tier ? '#ff8a3a' : '#2a2a32';
-      if (k === game.tier && k >= game.history.length) d.className = 'blink-slow';
-      d.title = WD.TIERS[k].name + (game.history[k] ? '：' + game.history[k].era.name : '');
-      el.appendChild(d);
+      const h = game.history[k];
+      const current = !h && k === game.tier;
+      const era = h ? h.era : current ? game.era : null;
+      let state = h ? 'done' : current ? 'current' : 'pending';
+      let tag = h ? h.word : '';
+      if (current) {
+        if (game.collapsed) { state = 'dead'; tag = game.currentWord ? game.currentWord + '：崩壊' : '崩壊'; }
+        else if (!era) tag = '選択中…';
+        else tag = game.currentWord || '現在';
+      }
+      if (k > 0) {
+        const ar = document.createElement('span');
+        ar.className = 'step-arrow';
+        ar.textContent = '▶';
+        el.appendChild(ar);
+      }
+      const st = document.createElement('div');
+      st.className = 'step ' + state;
+      st.innerHTML = '<span class="step-num"></span><span class="step-era"></span><span class="step-word"></span>';
+      st.querySelector('.step-num').textContent = nums[k];
+      st.querySelector('.step-era').textContent = era ? era.name : WD.TIERS[k].label;
+      st.querySelector('.step-word').textContent = tag ? '[' + tag + ']' : '';
+      st.title = WD.TIERS[k].name + '（' + WD.TIERS[k].label + '）' + (era ? '：' + era.yearLabel + ' ' + era.name + '（' + era.sub + '）' : '') + (h ? '　投下「' + h.word + '」→ ' + h.title : '');
+      el.appendChild(st);
     }
   }
 
@@ -506,6 +531,8 @@
     if (len > WD.MAX_WORD_LEN) { toast(WD.MAX_WORD_LEN + '文字以内で入力してください'); return; }
     game.phase = 'busy';
     game.usedWords.add(word);
+    game.currentWord = word;
+    renderSteps();
     setFormEnabled(false);
     document.querySelectorAll('.card').forEach((c) => { if (c.querySelector('.vert').textContent === word) c.classList.add('used'); });
     $('word-input').value = '';
@@ -566,7 +593,7 @@
     }
 
     game.history.push({ word, title: result.title, timeline: result.timeline, era });
-    renderPips();
+    renderSteps();
     game.phase = 'result';
     $('drop-form').classList.add('hidden');
     const nb = $('btn-next');
@@ -609,16 +636,54 @@
 
   function gameOver(kind, stage, word, result) {
     game.phase = 'ended';
+    game.collapsed = true;
+    renderSteps();
     game.world.collapse();
     Sfx.play('collapse');
     const era = game.era;
     const [reason, text] = COLLAPSE[kind];
+    const brokenKey = kind.split('-')[0];
+    const brokenParam = WD.PARAMS.find((p) => p.key === brokenKey);
+    const findings = era.yearLabel + '、' + era.name + '（' + era.sub + '）の' + era.place + 'に投下された「' + word + '」は「' + result.title + '」を引き起こした。その' + stage.label + '（' + fmtStage(stage.year) + '）、' +
+      brokenParam.name + 'が' + (kind.endsWith('-lo') ? '0を下回り' : '100を突破し') + '、' + text;
+    const words = game.history.map((h) => h.word).concat(word);
+    let no = 0;
+    for (const ch of words.join('')) no = (no * 31 + ch.charCodeAt(0)) % 9000;
+    const sns = '【WORDROP 滅亡調査報告書】' + game.history.map((h) => h.era.name + 'に「' + h.word + '」').concat(era.name + 'に「' + word + '」').join('→') +
+      'を投下したら、' + stage.label + 'に「' + reason + '」で文明が崩壊しました…。 #WORDROP #歴史改変';
+
+    // 崩れ落ちていく瞬間の浮島を撮影してから報告書を開く
+    let snapshot = null;
+    setTimeout(() => { snapshot = game.world.snapshot(); }, 1300);
     setTimeout(() => {
-      $('collapse-reason').textContent = '― ' + reason + ' ―';
-      $('collapse-text').textContent =
-        era.yearLabel + '、' + era.name + '（' + era.sub + '）の' + era.place + 'に投下された「' + word + '」は「' + result.title + '」を引き起こし、その' + stage.label + '、' +
-        fmtStage(stage.year) + '。' + text;
-      $('collapse-sns').value = '【WORDROP】' + era.name + '（' + era.yearLabel + '）に「' + word + '」を投下したら、' + stage.label + 'に' + reason + 'で文明が崩壊しました…。 #WORDROP #歴史改変';
+      snapshot = snapshot || game.world.snapshot();
+      $('rp-no').textContent = '報告書 第' + String(1000 + no) + '号';
+      $('collapse-reason').textContent = '「' + reason + '」（' + brokenParam.name + (kind.endsWith('-lo') ? '消滅' : '暴走') + '）';
+      $('collapse-text').textContent = findings;
+      $('rp-trigger').textContent = '「' + stage.label + '」' + stage.text;
+      $('rp-image').src = snapshot;
+      const rows = game.history.map((h, i) => [WD.TIERS[i].name + ' ' + h.era.name, '「' + h.word + '」→ ' + h.title, false]);
+      rows.push([WD.TIERS[game.tier].name + ' ' + era.name, '「' + word + '」→ ' + result.title + '（' + stage.label + 'に崩壊）', true]);
+      $('rp-history').innerHTML = rows.map(([l, r, hot]) => '<tr' + (hot ? ' class="hot"' : '') + '><td>' + esc(l) + '</td><td>' + esc(r) + '</td></tr>').join('');
+      $('rp-params').innerHTML = WD.PARAMS.map((p) => {
+        const broken = p.key === brokenKey;
+        return '<span' + (broken ? ' class="broken"' : '') + '>' + p.name + ' <b>' + game.params[p.key] + '</b>' + (broken ? '（臨界突破）' : '') + '</span>';
+      }).join('');
+      $('collapse-sns').value = sns;
+      $('btn-share-x-collapse').href = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(sns);
+      setResultImage({
+        kind: 'collapse',
+        banner: 'GAME OVER ― 文明崩壊',
+        header: '時空省 歴史改変事故調査委員会　報告書 第' + String(1000 + no) + '号',
+        stamp: '滅亡',
+        heading: '滅亡調査報告書：「' + reason + '」',
+        body: findings,
+        rows: rows.map(([l, r, hot]) => [l, r, hot]),
+        params: WD.PARAMS.map((p) => ({ name: p.name, value: game.params[p.key], color: p.dark, broken: p.key === brokenKey })),
+        extra: { label: '直接の引き金（' + stage.label + '）', text: stage.text },
+        caption: '証拠写真1　崩壊直後の浮島（空撮）',
+        snapshot,
+      });
       $('collapse-modal').classList.remove('hidden');
     }, 2200);
   }
@@ -656,6 +721,19 @@
     $('tb-params').innerHTML = WD.PARAMS.map((p) => '<span>' + p.name + ' <b style="color:' + p.dark + '">' + game.params[p.key] + '</b></span>').join('');
     $('sns-text').value = r.sns;
     $('btn-share-x').href = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(r.sns);
+    setResultImage({
+      kind: 'clear',
+      banner: '2026年 ― 最終到達点',
+      header: r.title,
+      stamp: '時空省検定済',
+      heading: r.chapter,
+      body: r.body,
+      rows: game.history.map((h, i) => [WD.TIERS[i].name + ' ' + h.era.name, '「' + h.word + '」→ ' + h.title, false])
+        .concat([['2026年', WD.describeState(game.params), true]]),
+      params: WD.PARAMS.map((p) => ({ name: p.name, value: game.params[p.key], color: p.dark, broken: false })),
+      caption: '図1　2026年の浮島（空撮）',
+      snapshot: $('tb-image').src,
+    });
     Sfx.play('fanfare');
     game.phase = 'ended';
     await sleep(900);
@@ -681,10 +759,56 @@
     Sfx.play('select');
   }
 
+  /* ---------- 結果カード画像（PNG） ---------- */
+  // 共有ボタンはユーザー操作の直後に呼ぶ必要があるため、モーダルを開いた時点で先に描いておく
+  function setResultImage(data) {
+    game.result = { data, blob: null, pending: WD.ShareImage.blob(data) };
+    game.result.pending.then((b) => { if (game.result && game.result.data === data) game.result.blob = b; }).catch(() => {});
+  }
+  function resultBlob() {
+    if (!game.result) return Promise.reject(new Error('結果がありません'));
+    return game.result.blob ? Promise.resolve(game.result.blob) : game.result.pending;
+  }
+  function imageName() {
+    const kind = game.result && game.result.data.kind === 'collapse' ? 'report' : 'textbook';
+    return 'wordrop-' + kind + '-' + new Date().toISOString().slice(0, 10) + '.png';
+  }
+  async function saveImage() {
+    try {
+      const blob = await resultBlob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = imageName();
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      toast('画像を保存しました。Xの投稿に添付してください');
+      Sfx.play('select');
+    } catch (e) { toast('画像の生成に失敗しました：' + (e.message || e)); }
+  }
+  async function copyImage() {
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': resultBlob() })]);
+      toast('画像をコピーしました。Xの投稿欄に貼り付けできます');
+      Sfx.play('select');
+    } catch (e) {
+      toast('このブラウザでは画像をコピーできません。「画像を保存」をお使いください');
+    }
+  }
+  async function shareImage(textId) {
+    try {
+      const blob = await resultBlob();
+      const file = new File([blob], imageName(), { type: 'image/png' });
+      await navigator.share({ files: [file], text: $(textId).value });
+    } catch (e) {
+      if (e && e.name !== 'AbortError') toast('共有できませんでした：' + (e.message || e));
+    }
+  }
+
   /* ---------- キャンバスのフィット ---------- */
   function fitCanvas() {
     const pane = $('map-pane');
-    const pw = pane.clientWidth - 24, ph = pane.clientHeight - 24;
+    const pad = window.matchMedia('(max-width: 760px), (max-width: 1024px) and (orientation: portrait)').matches ? 6 : 24;
+    const pw = pane.clientWidth - pad, ph = pane.clientHeight - pad;
     if (pw <= 0 || ph <= 0) return;
     let s = Math.min(pw / W, ph / H);
     if (s >= 2) s = Math.floor(s);
@@ -726,6 +850,15 @@
     $('btn-mute').classList.toggle('off', Sfx.muted);
     $('btn-copy').addEventListener('click', () => copyText($('sns-text').value));
     $('btn-copy-collapse').addEventListener('click', () => copyText($('collapse-sns').value));
+    document.querySelectorAll('.btn-img-save').forEach((b) => b.addEventListener('click', saveImage));
+    document.querySelectorAll('.btn-img-copy').forEach((b) => {
+      if (!WD.ShareImage.canCopy()) b.classList.add('hidden');
+      b.addEventListener('click', copyImage);
+    });
+    document.querySelectorAll('.btn-img-share').forEach((b) => {
+      if (WD.ShareImage.canShareFiles()) b.classList.remove('hidden');
+      b.addEventListener('click', () => shareImage(b.dataset.result === 'collapse' ? 'collapse-sns' : 'sns-text'));
+    });
     $('btn-retry').addEventListener('click', () => { hideModals(); startGame(game.mode.key); });
     document.querySelectorAll('.btn-restart').forEach((b) => b.addEventListener('click', () => { hideModals(); showTitle(); }));
 
