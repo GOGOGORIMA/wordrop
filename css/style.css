@@ -722,3 +722,34 @@ body { font-family: 'DotGothic16', sans-serif; -webkit-font-smoothing: none; }
   .img-tools .metal-btn, .sns-box .metal-btn { flex: 1 1 auto; }
   .ms-choice b { font-size: 14px; }
 }
+
+/* ---------- 濃密タイムラインのログ（🏛️ メイン / 💬 市井 / ⚠️ 史実） ---------- */
+.log-legend { display: inline-flex; gap: 6px; font-size: 10px; }
+.log-legend i { font-style: normal; padding: 0 4px; border-left: 3px solid; }
+.lg-main { border-color: #ffd23f; color: #ffe9a8; }
+.lg-murmur { border-color: #4fd8ff; color: #9fe8ff; }
+.lg-hist { border-color: #ff3a2a; color: #ffb0a0; }
+.log-badge { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-right: 6px; }
+.log-badge .kind { font-size: 10px; padding: 0 5px; border: 1px solid currentColor; }
+.log-badge .stage { font-size: 11px; color: #ffd23f; }
+.log-stage.main { border-left: 4px solid #ffd23f; background: rgba(255,210,63,0.07); padding: 4px 6px 4px 8px; }
+.log-stage.main .kind { color: #ffd23f; }
+.log-stage.main .txt { color: #fff; }
+.log-murmur { border-left: 4px solid #4fd8ff; background: rgba(79,216,255,0.06); padding: 3px 6px 3px 8px; margin: 4px 0; font-size: 12px; color: #d8eef4; }
+.log-murmur .kind { color: #4fd8ff; }
+.log-murmur .yr { color: #7aa8b8; font-size: 11px; }
+.log-murmur.daily { border-left-color: #5a8a9a; color: #b8c8cc; }
+.log-murmur.daily .kind { color: #7aa8b8; }
+.log-murmur .deltas span { margin-right: 4px; font-size: 10px; }
+.log-stage.hist { border-left-width: 4px; }
+.log > .fresh { animation: logFresh 2.4s ease-out; }
+@keyframes logFresh { 0% { background-color: rgba(255,255,200,0.35); transform: translateX(-6px); } 15% { transform: none; } 100% { } }
+.lock-row { display: flex; align-items: center; gap: 6px; margin-top: 3px; }
+.lock-row .lock-bar { flex: 1; margin-top: 0; }
+.lock-phase { font-size: 10px; color: #ffe9a8; white-space: nowrap; background: rgba(255,210,63,0.12); border: 1px solid #6a5a20; padding: 0 5px; }
+@media (max-width: 767px) {
+  .lock-row { flex-wrap: wrap; }
+  .lock-phase { white-space: normal; }
+  .log-legend { font-size: 9px; gap: 3px; }
+}
+.lock-row .lock-bar { min-width: 90px; }

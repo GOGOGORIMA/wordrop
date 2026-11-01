@@ -134,6 +134,7 @@
       this.people = [];
       this.particles = [];
       this.drops = [];
+      this.bubbles = [];
       this.flash = 0;
       this.shake = 0;
       this.time = 0;
@@ -658,6 +659,60 @@
       this.shake = 10;
     }
 
+    /* ---------- 吹き出し（市井のざわめき） ---------- */
+    say(text, opts) {
+      opts = opts || {};
+      const people = this.people.filter((p) => !p.dying && p.alpha > 0.6);
+      const homes = this.buildings.filter((b) => !b.removing && b.fall === 0);
+      const bub = { text: String(text), t: 0, life: opts.life || 3.6, tone: opts.tone || 'murmur' };
+      if (!opts.building && people.length) bub.person = people[(this.rnd() * people.length) | 0];
+      else if (homes.length) bub.building = homes[(this.rnd() * homes.length) | 0];
+      else return;
+      this.bubbles.push(bub);
+      if (this.bubbles.length > 4) this.bubbles.shift();
+    }
+
+    drawBubbles(g, cam) {
+      if (!this.bubbles.length) return;
+      g.font = '13px "DotGothic16", sans-serif';
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      for (const b of this.bubbles) {
+        let wx, wy;
+        if (b.person) {
+          const p = b.person;
+          const x = lerp(p.fx, p.tx, p.t), y = lerp(p.fy, p.ty, p.t);
+          const h = Math.max(lerp(this.heightAt(p.fx, p.fy), this.heightAt(p.tx, p.ty), p.t), this.flood());
+          const sp = this.screen(x, y, h);
+          wx = sp.sx; wy = sp.sy - 5;
+        } else {
+          const bp = this.screen(b.building.x, b.building.y, this.bh(b.building));
+          wx = bp.sx; wy = bp.sy + 2 - b.building.sprite.ay + 2;
+        }
+        const X = Math.round(wx * cam.z + cam.ox);
+        const rise = Math.round(Math.min(1, b.t / 0.35) * 6 + b.t * 2);
+        const Y = Math.round(wy * cam.z + cam.oy) - 14 - rise;
+        const a = Math.min(1, b.t / 0.25, (b.life - b.t) / 0.5);
+        if (a <= 0) continue;
+        const tw = Math.ceil(g.measureText(b.text).width);
+        const w = tw + 12, h = 20;
+        const x0 = Math.round(X - w / 2), y0 = Y - h;
+        g.globalAlpha = a;
+        const ink = b.tone === 'main' ? '#5a3a0a' : '#1a1a2a';
+        const paper = b.tone === 'main' ? '#fff3c4' : '#ffffff';
+        // ドット風の角を落とした吹き出し＋しっぽ
+        g.fillStyle = ink;
+        g.fillRect(x0 + 2, y0, w - 4, h); g.fillRect(x0, y0 + 2, w, h - 4); g.fillRect(x0 + 1, y0 + 1, w - 2, h - 2);
+        g.fillRect(X - 3, y0 + h, 6, 2); g.fillRect(X - 2, y0 + h + 2, 4, 2); g.fillRect(X - 1, y0 + h + 4, 2, 2);
+        g.fillStyle = paper;
+        g.fillRect(x0 + 2, y0 + 2, w - 4, h - 4); g.fillRect(x0 + 3, y0 + 1, w - 6, h - 2); g.fillRect(x0 + 1, y0 + 3, w - 2, h - 6);
+        g.fillRect(X - 2, y0 + h - 2, 4, 3); g.fillRect(X - 1, y0 + h + 1, 2, 2);
+        g.fillStyle = ink;
+        g.fillText(b.text, X, y0 + h / 2 + 1);
+      }
+      g.globalAlpha = 1;
+    }
+
     /* ---------- 単語投下 ---------- */
     dropWord(text) {
       this.drops.push({ text, y: -30, vy: 0, x: OX, ty: OY + 200 - 40, state: 'fall', t: 0, trail: [] });
@@ -840,6 +895,8 @@
       }
       this.drops = this.drops.filter((d) => !(d.state === 'hit' && d.t > 2.2));
 
+      for (const b of this.bubbles) b.t += dt;
+      this.bubbles = this.bubbles.filter((b) => b.t < b.life);
       this.flash = Math.max(0, this.flash - dt * 1.6);
       this.alert = Math.max(0, (this.alert || 0) - dt * 0.35);
       this.shake = Math.max(0, this.shake - dt * 14);
@@ -993,6 +1050,7 @@
 
       g.restore();
       drawParticles(true);
+      this.drawBubbles(g, cam);
       // 史実イベント割り込みの赤い警報
       if (this.alert > 0) {
         const a = Math.min(1, this.alert) * (0.18 + 0.14 * Math.abs(Math.sin(t * 7)));

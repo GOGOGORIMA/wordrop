@@ -192,7 +192,7 @@
     world: null, mode: null, era: null, params: null, phase: 'idle', usedWords: new Set(), draft: [], rerolls: 0,
     drops: [], schedule: [], collapsed: false, currentWord: '', result: null, autoPaused: 0,
     century: 0, oracles: WD.ORACLES_PER_CENTURY, centuryStart: null,
-    cooldownUntil: -1, histEvents: [], histDone: [],
+    cooldownUntil: -1, histEvents: [], histDone: [], murmurs: [],
   };
   const COOLDOWN_MONTHS = WD.COOLDOWN_YEARS * 12;
   const CENTURY_MONTHS = WD.CENTURY_YEARS * 12;
@@ -223,7 +223,7 @@
       mode, era: null, params: Object.assign({}, WD.BASE_PARAMS), phase: 'idle', usedWords: new Set(),
       drops: [], schedule: [], collapsed: false, currentWord: '', result: null, autoPaused: 0,
       century: 0, oracles: WD.ORACLES_PER_CENTURY, centuryStart: null,
-      cooldownUntil: -1, histEvents: [], histDone: [],
+      cooldownUntil: -1, histEvents: [], histDone: [], murmurs: [],
     });
     Object.assign(clock, { m: 0, month: -1, nextMini: WD.DAILY_MONTHS[0], shown: '' });
     game.world = new WD.IsoWorld($('world'), {
@@ -519,9 +519,12 @@
       fireEvent(ev);
       if (game.phase !== 'live') return;
     }
+    for (const mm of game.murmurs.filter((m) => !m.fired && m.month <= mi)) fireMurmur(mm);
+    game.murmurs = game.murmurs.filter((m) => !m.fired);
     if (mi >= clock.nextMini) {
       clock.nextMini = nextDaily(mi);
-      dailyEvent(d);
+      // 市井のざわめきが流れている間は、汎用の日常イベントはお休み
+      if (!game.murmurs.length) dailyEvent(d);
       if (game.phase !== 'live') return;
     }
     // 100年ごとの世紀末マイルストーン
@@ -557,20 +560,38 @@
     const date = dateAt(nowMonth());
     drop.fired.push({ year: date.year, month: date.month, offset: ev.offset, text: ev.text });
     const applied = applyDelta(ev.delta);
-    const box = logEl('log-stage');
-    box.innerHTML = '<span class="chip"></span><span class="yr"></span><div class="txt"></div><div class="deltas"></div>';
-    const gen = WD.GENERATIONS[WD.generationOf(ev.offset)];
-    box.querySelector('.chip').textContent = '+' + ev.offset + '年';
-    box.querySelector('.yr').textContent = fmtDate(date) + '　「' + drop.word + '」' + gen.name + '［' + gen.label + '］';
+    const st = WD.stageOf(ev.offset);
+    const box = logEl('log-stage main');
+    box.innerHTML = '<div class="log-badge"><span class="kind">🏛️ メイン歴史変容</span><span class="stage"></span></div><span class="yr"></span><div class="txt"></div><div class="deltas"></div>';
+    box.querySelector('.stage').textContent = '【' + st.key + '】+' + ev.offset + '年' + (st.phase <= 5 ? '・侵食' + st.phase + '/5' : '');
+    box.querySelector('.yr').textContent = fmtDate(date) + '　神託「' + drop.word + '」';
     box.querySelector('.deltas').innerHTML = deltaHtml(applied);
     typeInto(box.querySelector('.txt'), ev.text);
-    game.world.applyMap(ev.map, '「' + drop.word + '」+' + ev.offset + '年');
+    game.world.applyMap(ev.map, '「' + drop.word + '」' + st.key);
     game.world.syncAuto();
-    showNews('📜 ' + fmtDate(date) + '「' + drop.word + '」' + gen.name + '　' + ev.text);
+    game.world.say('【' + st.key + '】', { building: true, tone: 'main', life: 4 });
+    showNews('🏛️ ' + fmtDate(date) + '「' + drop.word + '」【' + st.key + '】　' + ev.text);
     Sfx.play('stage');
     renderSteps();
     const fail = checkCollapse();
     if (fail) gameOver(fail, { type: 'event', ev, drop, date });
+  }
+
+  /* レイヤーB：市井のざわめき（ログ＋浮島の吹き出し） */
+  function fireMurmur(mm) {
+    mm.fired = true;
+    const drop = game.drops[mm.drop];
+    let text = mm.text, say = mm.say;
+    if (!text) { // AI の分の隙間はその場で作る
+      const g = WD.localMurmur({ era: game.era, word: drop ? drop.word : '' });
+      text = g.text; say = g.say;
+    }
+    const date = dateAt(nowMonth());
+    const box = logEl('log-murmur');
+    box.innerHTML = '<span class="log-badge"><span class="kind">💬 市井のざわめき</span></span><span class="yr"></span> <span class="txt"></span>';
+    box.querySelector('.yr').textContent = fmtDate(date);
+    box.querySelector('.txt').textContent = text;
+    game.world.say(say);
   }
 
   /* ---------- 史実の大事件の割り込み（歴史イベント衝突） ---------- */
@@ -631,7 +652,7 @@
     const last = game.drops[game.drops.length - 1];
     const r = WD.Oracle.miniEvent({ era: game.era, season: game.world.season, word: last ? last.word : '', params: game.params });
     const applied = applyDelta(r.delta);
-    logEl('log-mini', '・' + esc(fmtDate(date)) + '　' + esc(r.text) + ' <span class="deltas">' + deltaHtml(applied) + '</span>');
+    logEl('log-murmur daily', '<span class="log-badge"><span class="kind">💬 市井</span></span><span class="yr">' + esc(fmtDate(date)) + '</span> ' + esc(r.text) + ' <span class="deltas">' + deltaHtml(applied) + '</span>');
     if (Math.random() < 0.6) game.world.addBuilding(Math.random() < 0.5 ? 'field' : game.params.technology < 35 ? 'hut' : 'house', { label: '日常の営み' });
     game.world.syncAuto();
     const fail = checkCollapse();
@@ -671,10 +692,10 @@
         const { d, i } = x;
         const live = game.schedule.some((e) => e.drop === i && !e.fired);
         name = d.word;
-        const gen = d.fired.length ? WD.GENERATIONS[WD.generationOf(d.fired[d.fired.length - 1].offset)].name : '';
+        const gen = d.fired.length ? WD.stageOf(d.fired[d.fired.length - 1].offset).key : '';
         if (game.collapsed && i === game.drops.length - 1) { state = 'dead'; tag = '崩壊'; }
         else if (live) { state = 'current'; tag = gen + ' ' + d.fired.length + '/' + d.total; }
-        else { state = 'done'; tag = '第3世代まで到達'; }
+        else { state = 'done'; tag = '長期余波まで到達'; }
       } else if (k === mine.length && game.currentWord) {
         state = 'current'; name = game.currentWord; tag = '演算中…';
       }
@@ -747,13 +768,16 @@
     const d = document.createElement('div');
     d.className = cls;
     if (html !== undefined) d.innerHTML = html;
+    // 新しいログは一番上に、ハイライトして差し込む
     const log = $('log');
-    log.appendChild(d);
-    while (log.children.length > 400) log.removeChild(log.firstChild);
+    log.insertBefore(d, log.firstChild);
+    d.classList.add('fresh');
+    setTimeout(() => d.classList.remove('fresh'), 2600);
+    while (log.children.length > 400) log.removeChild(log.lastChild);
     scrollLog();
     return d;
   }
-  function scrollLog() { const l = $('log'); l.scrollTop = l.scrollHeight; }
+  function scrollLog() { const l = $('log'); l.scrollTop = 0; }
   function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
   let skipTyping = false;
   async function typeInto(el, text) {
@@ -857,14 +881,14 @@
     const idx = game.drops.length;
     game.drops.push({ word, title: result.title, date: { year: date.year, month: date.month }, fired: [], total: result.events.length, century: game.century });
     for (const ev of result.events) game.schedule.push(Object.assign({}, ev, { month: mi + ev.offset * 12, drop: idx, fired: false }));
+    scheduleMurmurs(result.murmurs || [], mi, idx);
     game.oracles--;
     game.cooldownUntil = mi + COOLDOWN_MONTHS;
 
-    logEl('log-title', '【' + esc(result.title) + '】の予言が3世代にわたって刻まれた');
-    logEl('log-plan', WD.GENERATIONS.map((g) => '<span class="plan-gen">' + g.name + '</span>' + g.offsets.map((o) => {
-      const due = mi + o * 12;
-      return '<span class="plan">+' + o + '年 ' + esc(WD.fmtYear(dateAt(due).year)) + '</span>';
-    }).join('')).join(''));
+    logEl('log-plan', '<span class="plan-gen">予定</span>' + WD.MAIN_STAGES.map((st) =>
+      '<span class="plan">【' + st.key + '】' + esc(WD.fmtYear(dateAt(mi + st.offset * 12).year)) + '</span>').join('') +
+      '<span class="plan-gen">＋市井のざわめき' + game.murmurs.filter((m) => m.drop === idx).length + '件</span>');
+    logEl('log-title', '【' + esc(result.title) + '】の予言が15年間の濃密なタイムラインとして刻まれた');
 
     game.currentWord = '';
     updateDropLeft();
@@ -880,6 +904,28 @@
     renderClock(true);
     refreshForm();
     saveGame();
+  }
+
+  /* 市井のざわめきを、投下から15年間に4〜6ヶ月おきで敷き詰める。
+     AI が書いた分は15年間に均等に配り、その隙間はその場で作る分で埋める */
+  function scheduleMurmurs(list, mi, idx) {
+    const busy = new Set(game.schedule.filter((e) => e.drop === idx).map((e) => e.month));
+    const slots = [];
+    let m = mi + WD.MURMUR_INTERVAL[0];
+    while (m < mi + COOLDOWN_MONTHS) {
+      if (busy.has(m)) m++;
+      slots.push(m);
+      m += WD.MURMUR_INTERVAL[0] + Math.floor(Math.random() * (WD.MURMUR_INTERVAL[1] - WD.MURMUR_INTERVAL[0] + 1));
+    }
+    const chosen = new Map();
+    list.forEach((mm, k) => {
+      const at = Math.min(slots.length - 1, Math.round(((k + 0.5) * slots.length) / list.length - 0.5));
+      if (!chosen.has(at)) chosen.set(at, mm);
+    });
+    slots.forEach((month, k) => {
+      const mm = chosen.get(k);
+      game.murmurs.push({ month, drop: idx, text: mm ? mm.text : '', say: mm ? mm.say : '', fired: false });
+    });
   }
 
   function refreshForm() {
@@ -900,6 +946,7 @@
       box.classList.remove('hidden');
       $('lock-text').textContent = '🔒 この100年の神託はすべて使い切った（次の100年で★★★に回復）';
       $('lock-fill').style.width = '0%';
+      $('lock-phase').textContent = '';
       btn.innerHTML = '🔒<small>神託切れ</small>';
       return;
     }
@@ -909,6 +956,11 @@
       box.classList.remove('hidden');
       $('lock-text').textContent = '🔒 次の神託解禁まで：あと ' + years + ' 年（' + WD.fmtYear(dateAt(game.cooldownUntil).year) + '）';
       $('lock-fill').style.width = (((COOLDOWN_MONTHS - left) / COOLDOWN_MONTHS) * 100).toFixed(1) + '%';
+      const last = game.drops[game.drops.length - 1];
+      const lastEv = last && last.fired.length ? WD.stageOf(last.fired[last.fired.length - 1].offset) : WD.MAIN_STAGES[0];
+      const ph = Math.min(5, lastEv.phase);
+      $('lock-phase').textContent = '[侵食フェーズ ' + ph + '/5：' + WD.PHASES[ph] + ']';
+      $('lock-text').textContent += '・投下から' + (Math.floor((COOLDOWN_MONTHS - left) / 12) + 1) + '年目';
       btn.innerHTML = '🔒 あと' + years + '年<small>' + stars(game.oracles) + '</small>';
       return;
     }
@@ -994,13 +1046,14 @@
   /* ---------- オートセーブ ---------- */
   function saveGame() {
     if (!game.era || !game.world || (game.phase !== 'live' && game.phase !== 'milestone')) return;
-    const logNodes = [...$('log').children].slice(-150).map((n) => n.outerHTML).join('');
+    const logNodes = [...$('log').children].slice(0, 150).map((n) => n.outerHTML.replace(' fresh', '')).join('');
     const data = {
       v: 1, savedAt: Date.now(), mode: game.mode.key, eraId: game.era.id, phase: game.phase,
       params: game.params, century: game.century, oracles: game.oracles, centuryStart: game.centuryStart,
       clock: { m: clock.m, nextMini: clock.nextMini, speed: clock.lastSpeed },
       drops: game.drops, schedule: game.schedule, usedWords: [...game.usedWords],
       cooldownUntil: game.cooldownUntil, histEvents: game.histEvents, histDone: game.histDone, view: game.world.view,
+      murmurs: game.murmurs, logDesc: true,
       log: logNodes, world: game.world.serialize(),
     };
     try { localStorage.setItem(WD.SAVE_KEY, JSON.stringify(data)); } catch (e) { /* 容量不足などは無視 */ }
@@ -1028,7 +1081,7 @@
       drops: sv.drops || [], schedule: sv.schedule || [], collapsed: false, currentWord: '', result: null, autoPaused: 0,
       century: sv.century || 0, oracles: sv.oracles, centuryStart: sv.centuryStart,
       cooldownUntil: sv.cooldownUntil === undefined ? -1 : sv.cooldownUntil,
-      histEvents: sv.histEvents || [], histDone: sv.histDone || [],
+      histEvents: sv.histEvents || [], histDone: sv.histDone || [], murmurs: sv.murmurs || [],
     });
     const mi = Math.floor(sv.clock.m);
     Object.assign(clock, { m: sv.clock.m, month: mi, nextMini: sv.clock.nextMini, lastSpeed: sv.clock.speed || 1, shown: '' });
@@ -1040,6 +1093,7 @@
 
     $('panel-course').textContent = mode.name;
     $('log').innerHTML = sv.log || '';
+    if (!sv.logDesc) [...$('log').children].reverse().forEach((n) => $('log').appendChild(n)); // 古いセーブは時系列が逆
     $('hud-era').textContent = era.name + '（' + era.sub + '）' + (game.century ? '／第' + (game.century + 1) + '世紀' : '');
     $('btn-next').classList.add('hidden');
     $('drop-form').classList.remove('hidden');
@@ -1103,7 +1157,7 @@
       (game.drops.length ? '神託として投下された「' + words.slice(-4).join('」「') + '」' + (words.length > 4 ? 'など' : '') + 'は' + game.drops.slice(-4).map((d) => '「' + d.title + '」').join('、') + 'を引き起こした。' : '神託は一度も下されなかった。') +
       'そして開始から' + Math.floor(mi / 12) + '年後、' + cause + brokenParam.name + 'が' + (kind.endsWith('-lo') ? '0を下回り' : '100を突破し') + '、' + text;
     const triggerText = trigger.type === 'event'
-      ? '「' + WD.GENERATIONS[WD.generationOf(trigger.ev.offset)].name + '・+' + trigger.ev.offset + '年」' + trigger.ev.text
+      ? '「【' + WD.stageOf(trigger.ev.offset).key + '】+' + trigger.ev.offset + '年」' + trigger.ev.text
       : trigger.type === 'history'
         ? '「史実イベント」『' + trigger.he.name + '』→「' + trigger.r.title + '」' + trigger.r.text
         : '「日常の出来事」' + trigger.text;

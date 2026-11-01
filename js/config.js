@@ -10,14 +10,29 @@ WD.CENTURY_YEARS = 100;              // 1チャプター＝100年。100年ごと
 WD.ORACLES_PER_CENTURY = 3;          // 100年につき投下できる単語（神託）の数
 WD.COOLDOWN_YEARS = 15;              // 1回投下したら、次の神託までゲーム内で15年待つ
 WD.DAILY_MONTHS = [24, 36];          // 日常の小イベントの間隔（2〜3年おき）
-/* 1つの単語が3世代・約30年にわたって起こす年次イベント（投下からの年数） */
-WD.GENERATIONS = [
-  { name: '第1世代', label: '導入・混乱期', offsets: [0, 2, 5, 8] },
-  { name: '第2世代', label: '定着・変質期', offsets: [12, 16, 20] },
-  { name: '第3世代', label: '暴走・到達期', offsets: [25, 30] },
+/* 神託1回が起こす「15年間の濃密タイムライン」
+ * レイヤーA：メイン歴史変容（10段階・11件）。phase は5つの社会侵食フェーズ（6＝長期余波）
+ * レイヤーB：市井のざわめき（4〜6ヶ月おきに差し込まれるマイクロログ＋浮島の吹き出し） */
+WD.MAIN_STAGES = [
+  { offset: 0, key: '着弾', phase: 1, desc: '未知の概念の出現と、当時の人々の誤解・混乱' },
+  { offset: 1, key: '試行', phase: 1, desc: '権力者や商人による最初の実験的利用' },
+  { offset: 2, key: '流行', phase: 2, desc: '庶民や現場レベルへの急速な拡散とブーム' },
+  { offset: 4, key: '摩擦', phase: 2, desc: '既存の身分制度・宗教・支配層との衝突や規制騒動' },
+  { offset: 6, key: '副作用', phase: 3, desc: '予想外のバグや社会問題、奇妙な新職業の誕生' },
+  { offset: 8, key: '魔改造', phase: 3, desc: '当時の技術や文化と融合した独自のシステム・建築への発展' },
+  { offset: 10, key: '制度化', phase: 4, desc: '法律や年貢、軍事・経済の根幹ルールへの組み込み' },
+  { offset: 12, key: '世代交代', phase: 4, desc: 'その概念を当たり前のものとして育った新世代による急進的変化' },
+  { offset: 15, key: '定着', phase: 5, desc: '15年間の変容の総括と、完全に別物となった社会の姿' },
+  { offset: 22, key: '長期余波', phase: 6, desc: '次の神託がなくても続く長期的な進化' },
+  { offset: 30, key: '長期余波', phase: 6, desc: 'さらに先、世代をまたいだ長期的な進化' },
 ];
-WD.EVENT_OFFSETS = WD.GENERATIONS.flatMap((g) => g.offsets);
-WD.generationOf = (offset) => WD.GENERATIONS.findIndex((g) => g.offsets.includes(offset));
+WD.PHASES = ['', '着弾期', '流行期', '魔改造期', '制度化期', '定着期', '長期余波'];
+WD.EVENT_OFFSETS = WD.MAIN_STAGES.map((s) => s.offset);
+/* 投下からの年数に対応する段階（古いセーブの年数にも、直前の段階で対応） */
+WD.stageOf = (offset) => WD.MAIN_STAGES.filter((s) => s.offset <= offset).pop() || WD.MAIN_STAGES[0];
+WD.MURMUR_COUNT = [12, 15];          // AI が書く市井のざわめきの数
+WD.MURMUR_INTERVAL = [4, 6];         // 市井のざわめきの間隔（ゲーム内の月）
+WD.SAY_MAX = 10;                     // 吹き出しの最大文字数
 WD.SAVE_KEY = 'wordrop.save.v1';
 
 WD.PARAMS = [

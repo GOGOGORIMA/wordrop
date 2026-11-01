@@ -115,14 +115,61 @@
       .replace(/\{hook3\}/g, e.hooks[2]);
   }
 
-  /* 世代ごとの汎用の一文（単語がその社会に根づいていく様子） */
-  const GEN_LINES = [
-    ['{w}の正体をめぐり、{who}の間で激論が交わされた。', '{ruler}は{w}を禁じるべきか迷い、結論を先送りにした。', '{place}の市に{w}を扱う露店が並び始めた。', '{w}を拒む古老と、飛びつく若者で{place}が二つに割れた。'],
-    ['{w}を当たり前に知る子どもたちが大人になった。', '{w}なしの暮らしを知らない世代が、{place}の要職を占め始めた。', '学び舎で{w}の作法が教えられるようになった。', '{w}の親から生まれた子が、親とは違う{w}の使い方を始めた。'],
-    ['{place}の街並みは{w}に合わせて造り替えられた。', '{w}はもはや信仰であり、制度であり、景色そのものだ。', '旅人は口をそろえる。「{place}は{w}でできている」と。'],
-  ];
+  /* レイヤーA：段階ごとの汎用の一文（単語がその社会を侵食していく様子） */
+  const STAGE_LINES = {
+    着弾: ['{place}に突如「{w}」が現れた。{who}はそれを{hook}の一種だと思い込み、拝んだり蹴ったりした。', '「{w}」とは何か。{ruler}の側近たちは三日三晩議論したが、誰も正解にたどり着けなかった。', '空から降ってきた「{w}」を前に、{who}は「祟りだ」「いや吉兆だ」と大騒ぎになった。'],
+    試行: ['{ruler}が「{w}」をこっそり試し、側近たちに固く口止めした。', '目ざとい商人が「{w}」を仕入れ、{place}の市で試験的に売り出した。', '{ruler}の命で、「{w}」の正しい使い方を探る秘密の研究が始まった。'],
+    流行: ['「{w}」が{who}の間で爆発的に流行。猫も杓子も{w}の話ばかりだ。', '{place}の路地という路地に「{w}」の看板が並んだ。', '「{w}」を持たない者は時代遅れ――そんな空気が{place}を覆った。'],
+    摩擦: ['{ruler}が「{w}」の制限令を出したが、{who}は抜け道を次々と編み出した。', '「{w}」は{hook2}の伝統に反すると、古くからの権威が猛反発した。', '「{w}」をめぐって身分の上下がひっくり返りかけ、各地で小競り合いが起きた。'],
+    副作用: ['「{w}」のせいで思わぬ騒ぎが続出。「{w}鑑定士」なる新しい職業まで生まれた。', '「{w}」の使いすぎで、{who}の間に「{w}疲れ」という奇妙な病が広がった。', '「{w}」の偽物が出回り、本物を見分けるための役所が置かれた。'],
+    魔改造: ['{place}の職人が「{w}」を{hook}と融合させ、まったく新しい「{place}式{w}」を完成させた。', '「{w}」専用の建物が{place}の様式で建てられ、街並みが一変した。', '「{w}」は当時の技術で作り直され、本来の姿とは似ても似つかない姿に進化した。'],
+    制度化: ['{ruler}は「{w}」を年貢・税の仕組みに組み込み、払えない者には罰を科した。', '「{w}」を定めた法が制定され、{place}の暮らしの隅々にまで規則が及んだ。', '軍も商いも「{w}」抜きでは動かなくなり、ついに国の根幹ルールに組み込まれた。'],
+    世代交代: ['「{w}」を当たり前に知る子どもたちが大人になり、古い世代を置き去りにし始めた。', '若い世代は「{w}」を親とはまったく違う使い方で楽しみ、年寄りは眉をひそめた。', '「{w}以前」を知らない世代が、{place}の要職を占め始めた。'],
+    定着: ['投下から15年。{place}は「{w}」なしでは考えられない社会になった。{hook3}も、もはや以前の姿ではない。', '15年が過ぎ、「{w}」は空気のように当たり前の存在となった。旅人は{place}を「{w}の国」と呼ぶ。'],
+    長期余波: ['「{w}」は世代を超えて進化を続け、{place}の文化そのものに溶け込んだ。', '「{w}」の起源を知る者はもういない。それでも{place}は{w}とともに回っている。', '「{w}」はさらに姿を変え、次の時代の常識の土台となった。'],
+  };
 
-  /* 単語投下 → 3世代・9段階（+0〜+30年）の年次タイムライン（オフライン） */
+  /* レイヤーB：市井のざわめき（本文と、浮島の吹き出し用の一言） */
+  const MURMURS = [
+    ['城下では「{w}」を巡る奇妙な口論が毎晩のように起きている。', 'うちのが本物だ！'],
+    ['{who}の子どもたちが「{w}ごっこ」に夢中で、親たちは頭を抱えている。', '{w}ごっこしよ！'],
+    ['市場の片隅で「{w}占い」を始めた老婆の店に、長蛇の列ができた。', 'よく当たるよ'],
+    ['兵士たちが見張りの合間に「{w}」の話で盛り上がり、上官に叱られた。', '静かにせい！'],
+    ['貴族の宴で「{w}」を知らぬ客が笑い者にされ、翌日から勉強を始めた。', '時代は{w}だ！'],
+    ['寺社の掲示板に「{w}お断り」の札が貼られ、かえって人だかりができた。', 'お断りだと!?'],
+    ['「{w}」を巡って夫婦喧嘩が絶えない家が増えていると、井戸端の噂。', 'もう知らん！'],
+    ['旅芸人が「{w}」を題材にした滑稽芝居を演じ、連日大当たりしている。', 'アハハハ！'],
+    ['{ruler}の屋敷の前で、「{w}」の規制に抗議する座り込みが続いている。', '撤回しろ！'],
+    ['「{w}」の偽物を売りさばいた商人がお縄になり、町中の噂になった。', '偽物だと!?'],
+    ['「{w}」のせいで寝不足だと訴える{who}が、なぜか増えている。', 'ねむい…'],
+    ['路地裏に「{w}」の非公式な集まりができ、夜な夜な人が集っている。', 'ここだけの話'],
+    ['「{w}」を詠み込んだ歌が流行り、誰もが口ずさんでいる。', '♪ら〜ら〜'],
+    ['祭りの山車に巨大な「{w}」が飾られ、驚いた子どもたちが泣き出した。', 'でかい！'],
+    ['「{w}」を拾ったという{who}が、自慢して町を練り歩いている。', '見て見て！'],
+    ['「{w}」をめぐる賭け事が流行し、役人が取り締まりに乗り出した。', '賭けた！'],
+    ['「{w}」の手入れ専門の職人が、弟子を募集する張り紙を出した。', '弟子求む！'],
+    ['「{w}」をどうしてもやめられない、と告白する僧侶が現れた。', '南無…'],
+    ['「{w}」断ちを誓った若者が、わずか三日で挫折した。', '無理でした'],
+    ['「{w}はもう古い」と言い出す若者が現れ、年寄りが目を丸くした。', 'もう古いよ'],
+    ['「{w}」の売り子の呼び声が、朝から晩まで{place}に響いている。', 'いらっしゃい！'],
+    ['「{w}」の作法を知らない役人が、門前で足止めを食らった。', '通してくれ！'],
+  ];
+  const clipSay = (s) => Array.from(String(s || '')).slice(0, WD.SAY_MAX).join('');
+  function sayFor(tpl, ctx) {
+    const s = fill(tpl, ctx);
+    return Array.from(s).length <= WD.SAY_MAX ? s : clipSay(fill(tpl.replace(/\{w\}/g, 'アレ'), ctx));
+  }
+  function offlineMurmurs(ctx, n) {
+    const pool = MURMURS.slice();
+    const out = [];
+    while (out.length < n && pool.length) {
+      const [t, s] = pool.splice((Math.random() * pool.length) | 0, 1)[0];
+      out.push({ text: fill(t, ctx), say: sayFor(s, ctx) });
+    }
+    return out;
+  }
+
+  /* 単語投下 → 15年間の濃密タイムライン（レイヤーA 11件＋レイヤーB 12〜15件、オフライン） */
   function offlineDrop(ctx) {
     const cat = classify(ctx.word);
     const C = CATS[cat];
@@ -132,34 +179,36 @@
       if (!pool[key] || !pool[key].length) pool[key] = arr.slice();
       return pool[key].splice((r() * pool[key].length) | 0, 1)[0];
     };
-    const frac = [0.06, 0.08, 0.1, 0.1, 0.12, 0.12, 0.13, 0.14, 0.15];
-    // 時代錯誤度：古い時代に現代語を落とすほど歪む
+    // 合計で約1になる配分（15年目までに大半の影響が出きる）
+    const frac = [0.04, 0.05, 0.08, 0.08, 0.09, 0.11, 0.12, 0.12, 0.13, 0.09, 0.09];
     const anachro = (3 - ctx.era.tier) * 3 + (ctx.era.year < 0 ? 2 : 0);
-    const events = WD.EVENT_OFFSETS.map((off, i) => {
-      const gen = WD.generationOf(off);
-      const tkey = ['t10', 't50', 't200'][gen];
-      const twist = ['early', 'mid', 'late'][gen];
+    const events = WD.MAIN_STAGES.map((st, i) => {
+      const phase = st.phase;
+      const tkey = phase <= 2 ? 't10' : phase <= 4 ? 't50' : 't200';
       const delta = {};
       for (const p of WD.PARAMS) {
-        let v = C.base[p.key] * frac[i] + (r() - 0.5) * 5;
+        let v = C.base[p.key] * frac[i] * 1.1 + (r() - 0.5) * 4;
         if (p.key === 'distortion') v = Math.max(0, v + anachro * frac[i]);
         delta[p.key] = Math.round(v);
       }
-      const m = C.maps[gen];
-      const build = i % 2 === 0;
+      const m = C.maps[Math.min(2, Math.floor((phase - 1) / 2))];
+      const build = i % 2 === 0 || st.key === '魔改造';
       const map = {
-        add: build ? (m.add || []).map(([type, count]) => ({ type, count: Math.max(1, count - (r() < 0.5 ? 1 : 0)) })) : [],
-        remove: build ? (m.remove || []).map(([type, count]) => ({ type, count })) : [],
+        add: build ? (m.add || []).slice(0, 2).map(([type]) => ({ type, count: 1 })) : [],
+        remove: build && phase >= 4 ? (m.remove || []).map(([type, count]) => ({ type, count })) : [],
         sky: build ? null : m.sky || null, sea: build ? null : m.sea || null, land: build ? null : m.land || null, weather: build ? null : m.weather || null,
       };
-      // 第2世代の終わりには時代のシンボル建築が単語の影響で増える
-      if (i === 6 && ctx.era.symbols.length) map.add.push({ type: ctx.era.symbols[0][0], count: 1 });
-      const lead = i % 3 === 1 ? take('gen' + gen, GEN_LINES[gen]) : take(tkey, C[tkey]);
-      const text = fill(lead, ctx) + (i % 2 === 1 ? fill(take(twist, TWISTS[twist]), ctx) : '');
-      return { offset: off, text, delta, map };
+      // 魔改造期：その時代の様式で建物が建つ
+      if (st.key === '魔改造' && ctx.era.symbols.length) map.add.push({ type: ctx.era.symbols[0][0], count: 1 });
+      let text = fill(take(st.key, STAGE_LINES[st.key]), ctx);
+      if (st.key === '流行' || st.key === '世代交代' || st.key === '長期余波') text += fill(take(tkey, C[tkey]), ctx);
+      return { offset: st.offset, stage: st.key, text, delta, map };
     });
-    return { title: fill(C.titles[(r() * C.titles.length) | 0], ctx), category: cat, events };
+    const n = WD.MURMUR_COUNT[0] + Math.floor(r() * (WD.MURMUR_COUNT[1] - WD.MURMUR_COUNT[0] + 1));
+    return { title: fill(C.titles[(r() * C.titles.length) | 0], ctx), category: cat, events, murmurs: offlineMurmurs(ctx, n) };
   }
+  /* 吹き出しの隙間を埋める、その場で作る市井のざわめき */
+  WD.localMurmur = (ctx) => offlineMurmurs(ctx, 1)[0];
 
   /* 2〜3年おきの日常の小イベント（常にローカル生成。季節・時代・パラメータに応じる） */
   const MINI = {
@@ -320,13 +369,13 @@
   function dropPrompt(ctx) {
     const p = ctx.params;
     const e = ctx.era;
-    const years = WD.GENERATIONS.map((g) => `${g.name}［${g.label}］: ` + g.offsets.map((o) => `+${o}年=${fmtYear(ctx.date.year + o)}${ctx.date.month}月`).join(', ')).join('\n  ');
+    const years = WD.MAIN_STAGES.map((st) => `+${st.offset}年（${fmtYear(ctx.date.year + st.offset)}）【${st.key}】${st.desc}`).join('\n  ');
     const pending = ctx.pending.length
       ? '\n- 並行して進行中の予言（これから起きる予定。矛盾せず絡み合うように）: ' + ctx.pending.slice(0, 8).map((x) => `${fmtDate(x)}「${x.word}」${x.text}`).join(' / ')
       : '';
     return `あなたは歴史改変シミュレーションゲーム『WORDROP』のゲームマスターです。
 空に浮かぶ箱庭の島で、ある時代が1年ずつリアルタイムに進行する大河シミュレーションです。プレイヤーは今この瞬間に「神託」として単語を1つ投下しました。
-その単語（概念・モノ）が突然この時代に存在したら、これから約30年・3世代にわたって歴史がどう段階的に変わっていくかを、年次タイムラインとして生成してください。
+その単語（概念・モノ）が突然この時代に存在したら、次の神託までの15年間（とその先の長期余波）に世界がどう変容していくかを、途切れのない2層構造のタイムラインとして生成してください。
 
 # 舞台の時代（ゲーム開始時にプレイヤーが選んだ時代。途中で変わらない）
 ${eraBlock(e)}
@@ -337,33 +386,36 @@ ${eraBlock(e)}
 - これまでの神託と、すでに起きた出来事（この改変状態を引き継ぐこと）:
 ${dropsBlock(ctx.drops)}${pending}
 - 今回投下された単語: 「${ctx.word}」
-- 生成する年（9件）:
+- レイヤーA（メイン歴史変容）として生成する11件:
   ${years}
 
 # 描写のルール
-- 第1世代［導入・混乱期］: 単語が持ち込まれた直後の驚き・混乱・反発。+0年は投下されたその年の出来事。
-- 第2世代［定着・変質期］: その単語を当たり前のものとして育った新世代が大人になり、使い方や意味を変えていく社会変化。
-- 第3世代［暴走・到達期］: 文明の構造や建築様式・街並みまでが完全に変容した到達点。
+- レイヤーA（events）: 上の11件を、各段階の意味（【着弾】〜【長期余波】）に忠実に、前の段階を受けて連鎖的に描くこと。text は各80文字以内。
+- レイヤーB（murmurs）: メイン事件の合間（4〜6ヶ月おき）に流れる「市井のざわめき」を${WD.MURMUR_COUNT[0]}〜${WD.MURMUR_COUNT[1]}個。庶民・兵士・職人・貴族などのユーモラスな日常風景や小事件を、15年間の時系列順に1行40〜60文字で。say は浮島の住人の頭上に出る吹き出しの一言（${WD.SAY_MAX}文字以内のセリフや擬音）。
 - 必ず「この時代固有の要素」（${e.hooks.join('、')}）や実在の人物・出来事・地名（${e.ruler}、${e.place}など）と単語を化学反応させ、この時代でしか起きないバタフライ・エフェクトを描くこと。年月が進めば権力者も代替わりしてよい。
-- text は各70文字以内の日本語。ユーモラスに、しかし史実の固有名詞はもっともらしく。
+- ユーモラスに、しかし史実の固有名詞はもっともらしく。
 
 # 数値・描画のルール
 - 人口・技術・秩序のいずれかが0以下または100以上になると文明崩壊（ゲームオーバー）。単語と時代の性質に忠実に増減させること。
-- delta は各年の増減値。population/technology/order は -12〜+12 の整数、distortion（時代錯誤による時空の歪み）は -5〜+12 の整数。
-- map は箱庭の島の見た目の変化。add/remove の type は次から選ぶ: ${typeList}。count は1〜2。第3世代では建築様式の変化を積極的に反映すること。
+- delta は各段階の増減値。population/technology/order は -10〜+10 の整数、distortion（時代錯誤による時空の歪み）は -5〜+10 の整数。murmurs には delta は不要。
+- map は箱庭の島の見た目の変化。add/remove の type は次から選ぶ: ${typeList}。count は1〜2。【魔改造】【定着】では建築様式・地形の変化を積極的に反映すること。
 - sky は ${WD.SKIES.join('|')}、sea は ${WD.SEAS.join('|')}、land は ${WD.LANDS.join('|')}、weather は ${WD.WEATHERS.join('|')} から選ぶ。変化がなければ null。
 - title はこの改変を象徴する歴史用語風の見出し（20文字以内）。
 
-# 出力形式（このJSONのみを出力。events は offset ${WD.EVENT_OFFSETS.join(',')} の${WD.EVENT_OFFSETS.length}件）
+# 出力形式（このJSONのみを出力。events は offset ${WD.EVENT_OFFSETS.join(',')} の${WD.EVENT_OFFSETS.length}件、murmurs は${WD.MURMUR_COUNT[0]}〜${WD.MURMUR_COUNT[1]}件）
 {
   "title": "プロテイン維新",
   "events": [
-    {"offset": 0, "text": "…", "delta": {"population": 2, "technology": 1, "order": -1, "distortion": 3},
+    {"offset": 0, "stage": "着弾", "text": "…", "delta": {"population": 1, "technology": 1, "order": -1, "distortion": 3},
      "map": {"add": [{"type": "market", "count": 1}], "remove": [], "sky": null, "sea": null, "land": null, "weather": null}},
-    {"offset": 2, "text": "…", "delta": {…}, "map": {…}},
-    …（offset 5, 8, 12, 16, 20, 25, 30 も同様）
+    {"offset": 1, "stage": "試行", "text": "…", "delta": {…}, "map": {…}},
+    …（offset 2, 4, 6, 8, 10, 12, 15, 22, 30 も同様）
+  ],
+  "murmurs": [
+    {"text": "城下町ではプロテインの味を巡る奇妙な口論が毎晩発生している。", "say": "抹茶味こそ至高！"},
+    …
   ]
-}`;
+}}`;
   }
 
   function finalePrompt(ctx) {
@@ -413,12 +465,13 @@ ${ctx.history && ctx.history.length ? '\n# 狂ってしまった史実の大事�
         const m = s.map || {};
         return {
           offset: off,
-          text: String(s.text || fb.text).slice(0, 120),
+          stage: WD.stageOf(off).key,
+          text: String(s.text || fb.text).slice(0, 140),
           delta: {
-            population: clampInt(d.population, -12, 12),
-            technology: clampInt(d.technology, -12, 12),
-            order: clampInt(d.order, -12, 12),
-            distortion: clampInt(d.distortion, -5, 12),
+            population: clampInt(d.population, -10, 10),
+            technology: clampInt(d.technology, -10, 10),
+            order: clampInt(d.order, -10, 10),
+            distortion: clampInt(d.distortion, -5, 10),
           },
           map: {
             add: items(m.add),
@@ -430,6 +483,13 @@ ${ctx.history && ctx.history.length ? '\n# 狂ってしまった史実の大事�
           },
         };
       }),
+      murmurs: (() => {
+        const list = (Array.isArray(raw.murmurs) ? raw.murmurs : [])
+          .filter((m) => m && m.text)
+          .slice(0, WD.MURMUR_COUNT[1])
+          .map((m) => ({ text: String(m.text).replace(/^\s*\[?市井\]?\s*/, '').slice(0, 80), say: clipSay(m.say) || '…!' }));
+        return list.length >= WD.MURMUR_COUNT[0] ? list : list.concat(fallback.murmurs.slice(0, WD.MURMUR_COUNT[0] - list.length));
+      })(),
     };
   }
 
