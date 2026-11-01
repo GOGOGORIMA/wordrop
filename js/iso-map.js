@@ -130,6 +130,12 @@
       this.onImpact = opts.onImpact || null;
       this.onLand = opts.onLand || null;
       this.spawnTimer = 0;
+      this.timeScale = 1;          // 時計の速度（0 = 一時停止）。住人の歩く速さに反映
+      this.seasonTint = null;      // 季節ごとの地表の色味
+      this.seasonWeather = null;   // 季節の天気（環境の天気が none のときだけ使う）
+      this.tcache = document.createElement('canvas');
+      this.tcache.width = W; this.tcache.height = H;
+      this.tintDirty = true;
 
       this.generate();
       this.makeSkyDecor();
@@ -398,6 +404,28 @@
     }
 
     setParams(p) { this.params = Object.assign({}, this.params, p); }
+
+    /* 月ごとの季節変化。地表にうっすら色を重ね、季節の天気を決める */
+    setSeason(month, era) {
+      const season = month <= 2 || month === 12 ? 'winter' : month <= 5 ? 'spring' : month <= 8 ? 'summer' : 'autumn';
+      const biome = era ? era.biome : 'temperate';
+      const mild = biome === 'desert' || biome === 'jungle' || biome === 'water' ? 0.5 : biome === 'snow' ? 0.6 : 1;
+      // 季節の中でも月ごとに少しずつ濃淡を変える
+      const k = [0.7, 1, 0.8][(month + 1) % 3];
+      const T = {
+        spring: [255, 190, 220, 0.09], summer: [90, 220, 60, 0.07],
+        autumn: [235, 120, 30, 0.15], winter: [235, 242, 255, 0.24],
+      }[season];
+      this.seasonTint = 'rgba(' + T[0] + ',' + T[1] + ',' + T[2] + ',' + (T[3] * mild * k).toFixed(3) + ')';
+      this.tintDirty = true;
+      this.season = season;
+      let wx = null;
+      if (season === 'winter' && (biome === 'temperate' || biome === 'urban' || biome === 'snow')) wx = 'snow';
+      else if (month === 4 && era && era.region === 'japan' && biome === 'temperate') wx = 'petals';
+      else if (season === 'summer' && (biome === 'jungle' || biome === 'water') && month === 7) wx = 'rain';
+      else if (season === 'autumn' && month === 11 && biome === 'temperate') wx = 'leaves';
+      this.seasonWeather = wx;
+    }
 
     /* ---------- 建物 ---------- */
     findWaterSpot() {
@@ -706,17 +734,17 @@
       }
       this.buildings = this.buildings.filter((b) => !(b.removing && b.alpha <= 0));
 
-      this.updatePeople(dt);
+      this.updatePeople(dt * Math.min(2.5, this.timeScale));
 
       // 天候
-      const wx = this.env.weather;
+      const wx = this.env.weather && this.env.weather !== 'none' ? this.env.weather : this.seasonWeather;
       if (wx && wx !== 'none') {
-        const rate = { rain: 140, snow: 50, ash: 40, petals: 22, neon: 30 }[wx] || 0;
+        const rate = { rain: 140, snow: 50, ash: 40, petals: 22, neon: 30, leaves: 18 }[wx] || 0;
         let n = rate * dt;
         while (n > 0) {
           if (this.rnd() < n) {
-            const col = { rain: '#a8c8f0', snow: '#ffffff', ash: '#6a6260', petals: this.rnd() < 0.5 ? '#ffb0d0' : '#ffd8e8', neon: this.rnd() < 0.5 ? '#25e0ff' : '#ff3ad0' }[wx];
-            const vy = { rain: 260, snow: 30, ash: 22, petals: 26, neon: 60 }[wx];
+            const col = { rain: '#a8c8f0', snow: '#ffffff', ash: '#6a6260', petals: this.rnd() < 0.5 ? '#ffb0d0' : '#ffd8e8', leaves: ['#e8782a', '#d84a1a', '#f0b030'][(this.rnd() * 3) | 0], neon: this.rnd() < 0.5 ? '#25e0ff' : '#ff3ad0' }[wx];
+            const vy = { rain: 260, snow: 30, ash: 22, petals: 26, neon: 60, leaves: 24 }[wx];
             this.particles.push({ x: this.rnd() * W, y: -4, vx: wx === 'rain' ? -40 : (this.rnd() - 0.5) * 20, vy: vy + this.rnd() * 20, life: 6, max: 6, color: col, size: wx === 'rain' ? 0 : 1, grav: 0, wobble: wx !== 'rain', weather: true });
           }
           n -= 1;
@@ -759,7 +787,19 @@
 
     /* ---------- 描画 ---------- */
     draw() {
-      if (this.dirty) this.renderTerrain();
+      if (this.dirty) { this.renderTerrain(); this.tintDirty = true; }
+      if (this.tintDirty) {
+        const tg = this.tcache.getContext('2d');
+        tg.clearRect(0, 0, W, H);
+        tg.drawImage(this.cache, 0, 0);
+        if (this.seasonTint) {
+          tg.globalCompositeOperation = 'source-atop';
+          tg.fillStyle = this.seasonTint;
+          tg.fillRect(0, 0, W, H);
+          tg.globalCompositeOperation = 'source-over';
+        }
+        this.tintDirty = false;
+      }
       const g = this.ctx;
       const t = this.time;
       g.save();
@@ -818,7 +858,7 @@
       // 裏側の滝
       const mouthFront = this.mouth && (this.mouth.dx > 0 || this.mouth.dy > 0);
       if (this.mouth && !mouthFront) this.drawWaterfall(g);
-      g.drawImage(this.cache, 0, 0);
+      g.drawImage(this.tcache, 0, 0);
       this.drawWaterSparkle(g);
       if (this.mouth && mouthFront) this.drawWaterfall(g);
 

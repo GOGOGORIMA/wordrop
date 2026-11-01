@@ -3,11 +3,12 @@ window.WD = window.WD || {};
 
 WD.MAX_WORD_LEN = 15;
 WD.DEFAULT_MODEL = 'gemini-3.8-flash';
-WD.STAGES = [
-  { label: '10年後', years: 10 },
-  { label: '50年後', years: 50 },
-  { label: '200年後', years: 200 },
-];
+/* リアルタイム進行 */
+WD.SECONDS_PER_MONTH = 5;            // 等倍：5秒＝1ヶ月（60秒＝1年）
+WD.SPEEDS = [0, 1, 2, 4];            // ⏸ / ×1 / ×2 / ×4
+WD.GOAL_YEARS = 15;                  // 15年生き延びればクリア
+WD.MAX_WORDS = 3;                    // 1プレイの投下上限
+WD.EVENT_OFFSETS = [1, 2, 3, 5, 8, 10]; // 単語投下から何年後に年次イベントが起きるか
 
 WD.PARAMS = [
   { key: 'population', name: '人口', color: '#5be06a', dark: '#1f6b2a' },
@@ -20,7 +21,7 @@ WD.PARAMS = [
 WD.MODES = {
   japan: { key: 'japan', name: '日本史モード', short: '日本史', textbook: '新しい日本史', place: 'この国', regions: ['japan'], note: '日本史20時代から抽選' },
   world: { key: 'world', name: '世界史モード', short: '世界史', textbook: '新詳 世界史', place: '世界', regions: ['world'], note: '世界史30時代から抽選' },
-  chaos: { key: 'chaos', name: '全歴史カオスモード', short: '全歴史', textbook: '時空混成 総合歴史', place: 'この浮島', regions: ['japan', 'world'], note: '全50時代から抽選' },
+  chaos: { key: 'chaos', name: '全歴史モード', short: '全歴史', textbook: '時空混成 総合歴史', place: 'この浮島', regions: ['japan', 'world'], note: '全50時代から抽選' },
 };
 WD.BASE_PARAMS = { population: 45, technology: 35, order: 50, distortion: 0 };
 WD.TIERS = [

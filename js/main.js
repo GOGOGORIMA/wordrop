@@ -103,6 +103,8 @@
     $('game-screen').classList.add('hidden');
     $('title-screen').classList.remove('hidden');
     if (game.world) game.world.stop();
+    game.phase = 'idle';
+    stopClock();
     titleWorld.start();
     $('logo')._resume && $('logo')._resume();
     $('push-start').classList.add('hidden');
@@ -119,8 +121,13 @@
     $('api-status').textContent = settings.apiKey ? '保存済みのキーがあります。' : 'キーは未設定です。';
     $('settings-modal').classList.remove('hidden');
     setTimeout(() => $('api-key').focus(), 50);
+    // 設定中は時計を止める
+    if (game.phase === 'live' && clock.speed > 0) { game.autoPaused = clock.speed; setSpeed(0, true); }
   }
-  function closeSettings() { $('settings-modal').classList.add('hidden'); }
+  function closeSettings() {
+    $('settings-modal').classList.add('hidden');
+    if (game.autoPaused) { if (game.phase === 'live') setSpeed(game.autoPaused, true); game.autoPaused = 0; }
+  }
   function setupSettings() {
     $('btn-show-key').addEventListener('click', () => {
       const i = $('api-key');
@@ -163,11 +170,20 @@
   }
 
   /* ================= ゲーム本体 ================= */
-  const game = { world: null, mode: null, tier: 0, era: null, params: null, history: [], phase: 'idle', usedWords: new Set(), draft: [], rerolls: 0 };
+  const game = {
+    world: null, mode: null, era: null, params: null, phase: 'idle', usedWords: new Set(), draft: [], rerolls: 0,
+    drops: [], schedule: [], collapsed: false, currentWord: '', result: null, autoPaused: 0,
+  };
+  // 時計：m はゲーム開始からの経過月数（小数）。等倍では WD.SECONDS_PER_MONTH 秒で1ヶ月進む
+  const clock = { m: 0, month: -1, speed: 1, lastSpeed: 1, running: false, last: 0, nextMini: 3, shown: '' };
   // 船の様式（0: ロングシップ / 1: 帆船 / 2: 黒船・蒸気船）
   const SHIP_STYLE = { 19: 0, 20: 0, 25: 0, 38: 2, 48: 2 };
+  const SEASON_LABEL = { spring: '🌸 春', summer: '🌻 夏', autumn: '🍁 秋', winter: '⛄ 冬' };
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-  const fmtStage = (y) => WD.fmtYear(y) + (y > 2026 ? '（予言）' : '');
+  const fmtDate = WD.fmtDate;
+  const dateAt = (mi) => ({ year: game.era.year + Math.floor(mi / 12), month: (mi % 12) + 1, elapsed: mi });
+  const nowMonth = () => Math.floor(clock.m);
+  const elapsedLabel = (mi) => Math.floor(mi / 12) + '年' + (mi % 12) + 'ヶ月';
 
   function startGame(modeKey) {
     const mode = WD.MODES[modeKey];
@@ -177,15 +193,11 @@
     hideModals();
 
     if (game.world) game.world.stop();
-    game.mode = mode;
-    game.params = Object.assign({}, WD.BASE_PARAMS);
-    game.history = [];
-    game.usedWords = new Set();
-    game.era = null;
-    game.phase = 'idle';
-    game.collapsed = false;
-    game.currentWord = '';
-    game.result = null;
+    Object.assign(game, {
+      mode, era: null, params: Object.assign({}, WD.BASE_PARAMS), phase: 'idle', usedWords: new Set(),
+      drops: [], schedule: [], collapsed: false, currentWord: '', result: null, autoPaused: 0,
+    });
+    Object.assign(clock, { m: 0, month: -1, nextMini: 3, shown: '' });
     game.world = new WD.IsoWorld($('world'), {
       course: 'japan',
       onImpact: () => Sfx.play('impact'),
@@ -202,23 +214,25 @@
     $('drop-form').classList.add('hidden');
     $('btn-next').classList.add('hidden');
     $('cards').innerHTML = '';
+    $('word-input').placeholder = '単語を入力（15文字以内）';
     buildParams();
     renderParams();
     fitCanvas();
     updateSourceHud();
-    logEl('log-note', '◆ ' + esc(mode.name) + '：' + esc(mode.note) + '。各期の3つの時代から1つを選び、単語を投下してください。');
-    setTimeout(() => openDraft(0), 400);
+    setSpeed(1, true);
+    renderClock(true);
+    renderSteps();
+    updateDropLeft();
+    logEl('log-note', '◆ ' + esc(mode.name) + '：舞台となる時代を1つ選ぶと、その開始年から時計が動き出します（等倍で1分＝1年）。' + WD.GOAL_YEARS + '年間、文明を守り抜いてください。');
+    startClock();
+    setTimeout(openDraft, 400);
   }
 
-  /* ---------- 時代ドラフト（ランダム3択） ---------- */
-  function openDraft(tier) {
-    game.tier = tier;
+  /* ---------- 時代ドラフト（開始時のみ・ランダム3択） ---------- */
+  function openDraft() {
     game.phase = 'draft';
-    game.currentWord = '';
-    game.era = null;
     game.rerolls = 1;
-    game.draft = WD.drawEras(game.mode.key, tier + 1, 3, game.history.map((h) => h.era.id));
-    renderSteps();
+    game.draft = WD.drawEras(game.mode.key, null, 3);
     renderDraft();
     $('draft-modal').classList.remove('hidden');
     Sfx.play('select');
@@ -274,12 +288,9 @@
   }
 
   function renderDraft() {
-    const T = WD.TIERS[game.tier];
-    $('draft-tier').textContent = 'PERIOD ' + (game.tier + 1) + ' / 3';
-    $('draft-title').textContent = T.name + '　' + T.label + ' ― 時代を選べ';
-    $('draft-sub').textContent = game.tier === 0
-      ? '最初に歴史を書き換える時代を選んでください。時代ごとに文明パラメータが補正されます。'
-      : '前の時代の改変は浮島に積み重なったまま。次はどの時代に単語を落とす？';
+    $('draft-tier').textContent = 'SELECT YOUR ERA';
+    $('draft-title').textContent = '舞台となる時代を選べ';
+    $('draft-sub').textContent = '選んだ時代の開始年から' + WD.GOAL_YEARS + '年間、時は1年ずつ進み続けます。途中で時代は変えられません。';
     const box = $('draft-cards');
     box.innerHTML = '';
     game.draft.forEach((era, k) => {
@@ -294,14 +305,14 @@
         '<p class="era-desc"></p>' +
         '<div class="era-biome"></div>' +
         '<div class="era-mods"></div>' +
-        '<div class="era-pick">この時代を選ぶ ▶</div>';
+        '<div class="era-pick">この時代から始める ▶</div>';
       c.querySelector('.era-region').textContent = WD.REGION_NAME[era.region];
       c.querySelector('.era-year').textContent = era.yearLabel;
       c.querySelector('.era-name').textContent = era.name;
       c.querySelector('.era-sub').textContent = '（' + era.sub + '）';
       c.querySelector('.era-desc').textContent = era.desc;
       const B = WD.BIOMES[era.biome];
-      c.querySelector('.era-biome').textContent = B.icon + ' ' + B.name + '　舞台：' + era.place;
+      c.querySelector('.era-biome').textContent = B.icon + ' ' + B.name + '　舞台：' + era.place + '　開始：' + WD.fmtYear(era.year) + '1月';
       c.querySelector('.era-mods').innerHTML = WD.PARAMS.filter((p) => era.mod[p.key]).map((p) => {
         const d = era.mod[p.key];
         return '<span style="color:' + p.color + '">' + p.name + (d > 0 ? '+' : '') + d + '</span>';
@@ -319,8 +330,7 @@
   function reroll() {
     if (game.phase !== 'draft' || game.rerolls <= 0) return;
     game.rerolls--;
-    const exclude = game.draft.map((e) => e.id).concat(game.history.map((h) => h.era.id));
-    game.draft = WD.drawEras(game.mode.key, game.tier + 1, 3, exclude);
+    game.draft = WD.drawEras(game.mode.key, null, 3, game.draft.map((e) => e.id));
     Sfx.play('start');
     renderDraft();
   }
@@ -330,7 +340,6 @@
     $('draft-modal').classList.add('hidden');
     Sfx.play('start');
     game.era = era;
-    const T = WD.TIERS[game.tier];
 
     // 時代の初期パラメータ補正（選んだ瞬間に崩壊はしない）
     const applied = {};
@@ -353,20 +362,170 @@
       return undefined;
     });
     w.syncAuto();
+    w.setSeason(1, era);
 
-    $('hud-year').textContent = WD.fmtYear(era.year);
-    $('hud-era').textContent = T.name + '　' + era.name + '（' + era.sub + '）';
-    showBanner(T.name + ' ' + T.label + ' / ' + WD.REGION_NAME[era.region], era.yearLabel + '　' + era.name, era.sub + ' ― ' + era.desc);
-    logEra(era);
+    $('hud-era').textContent = era.name + '（' + era.sub + '）';
+    showBanner('START ― ' + WD.GOAL_YEARS + '年間を生き延びろ', WD.fmtYear(era.year) + '　' + era.name, era.sub + ' ― ' + era.desc);
+    logEl('log-era', '◆ ' + esc(era.yearLabel) + '　' + esc(era.name) + '（' + esc(era.sub) + '）／舞台：' + esc(era.place));
+    logEl('log-note', esc(era.desc));
     const mods = WD.PARAMS.filter((p) => applied[p.key]).map((p) => p.name + (applied[p.key] > 0 ? '+' : '') + applied[p.key]).join(' ');
     if (mods) logEl('log-note', '時代補正：' + esc(mods));
-    renderSteps();
+    logEl('log-year', '― ' + esc(fmtDate(dateAt(0))) + '　時計が動き出した ―');
+
     dealCards();
     $('drop-form').classList.remove('hidden');
-    $('btn-next').classList.add('hidden');
     setFormEnabled(true);
-    game.phase = 'input';
+    Object.assign(clock, { m: 0, month: 0, nextMini: 3 + (Math.random() < 0.5 ? 1 : 0), shown: '' });
+    game.phase = 'live';
+    setSpeed(1, true);
+    renderClock(true);
+    renderSteps();
     if (window.matchMedia('(min-width: 1025px)').matches) setTimeout(() => $('word-input').focus(), 100);
+  }
+
+  /* ---------- 時計 ---------- */
+  function startClock() {
+    if (clock.running) return;
+    clock.running = true;
+    clock.last = performance.now();
+    requestAnimationFrame(tick);
+  }
+  function stopClock() { clock.running = false; }
+  function tick(now) {
+    if (!clock.running) return;
+    const dt = Math.min(0.25, (now - clock.last) / 1000);
+    clock.last = now;
+    if (game.phase === 'live' && clock.speed > 0) {
+      clock.m += (dt * clock.speed) / WD.SECONDS_PER_MONTH;
+      while (Math.floor(clock.m) > clock.month && game.phase === 'live') {
+        clock.month++;
+        onMonth(clock.month);
+      }
+    }
+    renderClock();
+    requestAnimationFrame(tick);
+  }
+
+  function setSpeed(s, silent) {
+    clock.speed = s;
+    if (s > 0) clock.lastSpeed = s;
+    if (game.world) game.world.timeScale = game.phase === 'busy' ? 0 : s;
+    document.querySelectorAll('.spd').forEach((b) => b.classList.toggle('active', +b.dataset.speed === s));
+    updatePauseHud();
+    if (!silent) Sfx.play('blip');
+  }
+  function updatePauseHud() {
+    const el = $('hud-pause');
+    if (game.phase === 'busy') { el.textContent = '⌛ 時空演算中…'; el.classList.remove('hidden'); }
+    else if (game.phase === 'live' && clock.speed === 0) { el.textContent = '❚❚ PAUSE'; el.classList.remove('hidden'); }
+    else el.classList.add('hidden');
+  }
+
+  function renderClock(force) {
+    const fill = $('year-gauge-fill');
+    if (!game.era) {
+      if (force) {
+        $('clock-year').textContent = '----年'; $('clock-month').textContent = '-月'; $('clock-season').textContent = '';
+        $('clock-elapsed').textContent = '経過 0年0ヶ月 / ' + WD.GOAL_YEARS + '年'; $('clock-next').textContent = '次の激変：―';
+        fill.style.width = '0%';
+      }
+      return;
+    }
+    fill.style.width = (((clock.m % 12) / 12) * 100).toFixed(2) + '%';
+    const mi = nowMonth();
+    const next = game.schedule.filter((e) => !e.fired).sort((a, b) => a.month - b.month)[0];
+    const key = mi + '|' + (next ? next.month : '') + '|' + game.drops.length;
+    if (!force && key === clock.shown) return;
+    clock.shown = key;
+    const d = dateAt(mi);
+    $('clock-year').textContent = WD.fmtYear(d.year);
+    $('clock-month').textContent = d.month + '月';
+    $('clock-season').textContent = SEASON_LABEL[game.world.season] || '';
+    $('clock-elapsed').textContent = '経過 ' + elapsedLabel(Math.min(mi, WD.GOAL_YEARS * 12)) + ' / ' + WD.GOAL_YEARS + '年';
+    $('clock-next').textContent = next ? '次の激変：' + fmtDate(dateAt(next.month)) + '（あと' + (next.month - mi) + 'ヶ月）' : '次の激変：―';
+    $('hud-year').textContent = fmtDate(d);
+  }
+
+  /* 1ヶ月ごとの処理：季節・予約イベント・日常の小イベント・クリア判定 */
+  function onMonth(mi) {
+    const d = dateAt(mi);
+    game.world.setSeason(d.month, game.era);
+    if (d.month === 1) logEl('log-year', '― ' + esc(WD.fmtYear(d.year)) + '（' + Math.floor(mi / 12) + '年目）―');
+
+    for (const ev of game.schedule.filter((e) => !e.fired && e.month <= mi).sort((a, b) => a.month - b.month)) {
+      fireEvent(ev);
+      if (game.phase !== 'live') return;
+    }
+    if (mi >= clock.nextMini) {
+      clock.nextMini = mi + 3 + (Math.random() < 0.5 ? 1 : 0);
+      dailyEvent(d);
+      if (game.phase !== 'live') return;
+    }
+    if (mi >= WD.GOAL_YEARS * 12) { finale('survived'); return; }
+    if (game.drops.length >= WD.MAX_WORDS && !game.schedule.some((e) => !e.fired)) finale('resolved');
+  }
+
+  function applyDelta(delta) {
+    const applied = {};
+    for (const p of WD.PARAMS) {
+      const d = delta[p.key] || 0;
+      let v = game.params[p.key] + d;
+      if (p.key === 'distortion') v = clamp(v, 0, 100);
+      applied[p.key] = v - game.params[p.key];
+      game.params[p.key] = v;
+    }
+    renderParams(applied);
+    game.world.setParams(game.params);
+    return applied;
+  }
+  function deltaHtml(applied) {
+    return WD.PARAMS.filter((p) => applied[p.key]).map((p) => {
+      const d = applied[p.key];
+      return '<span style="color:' + p.color + '">' + p.name + (d > 0 ? '+' : '') + d + '</span>';
+    }).join('');
+  }
+
+  /* 予約された年次イベントの発動 */
+  function fireEvent(ev) {
+    ev.fired = true;
+    const drop = game.drops[ev.drop];
+    const date = dateAt(nowMonth());
+    drop.fired.push({ year: date.year, month: date.month, offset: ev.offset, text: ev.text });
+    const applied = applyDelta(ev.delta);
+    const box = logEl('log-stage');
+    box.innerHTML = '<span class="chip"></span><span class="yr"></span><div class="txt"></div><div class="deltas"></div>';
+    box.querySelector('.chip').textContent = '+' + ev.offset + '年後';
+    box.querySelector('.yr').textContent = fmtDate(date) + '　「' + drop.word + '」';
+    box.querySelector('.deltas').innerHTML = deltaHtml(applied);
+    typeInto(box.querySelector('.txt'), ev.text);
+    game.world.applyMap(ev.map, '「' + drop.word + '」+' + ev.offset + '年');
+    game.world.syncAuto();
+    showNews('📜 ' + fmtDate(date) + '「' + drop.word + '」+' + ev.offset + '年　' + ev.text);
+    Sfx.play('stage');
+    renderSteps();
+    const fail = checkCollapse();
+    if (fail) gameOver(fail, { type: 'event', ev, drop, date });
+  }
+
+  /* 3〜4ヶ月ごとの日常の小イベント */
+  function dailyEvent(date) {
+    const last = game.drops[game.drops.length - 1];
+    const r = WD.Oracle.miniEvent({ era: game.era, season: game.world.season, word: last ? last.word : '' });
+    const applied = applyDelta(r.delta);
+    logEl('log-mini', '・' + esc(fmtDate(date)) + '　' + esc(r.text) + ' <span class="deltas">' + deltaHtml(applied) + '</span>');
+    if (Math.random() < 0.3) game.world.addBuilding(Math.random() < 0.5 ? 'field' : game.params.technology < 35 ? 'hut' : 'house', { label: '日常の営み' });
+    game.world.syncAuto();
+    const fail = checkCollapse();
+    if (fail) gameOver(fail, { type: 'daily', text: r.text, date });
+  }
+
+  function showNews(text) {
+    const el = $('map-news');
+    el.textContent = text;
+    el.classList.remove('hidden');
+    el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+    clearTimeout(el._t);
+    el._t = setTimeout(() => el.classList.add('hidden'), 5200);
   }
 
   function showBanner(b1, b2, b3) {
@@ -380,21 +539,22 @@
     el.classList.remove('hidden');
   }
 
-  /* ---------- 3時代の進行ステップバー ---------- */
+  /* ---------- 投下スロット（最大3単語） ---------- */
   function renderSteps() {
     const el = $('steps');
     el.innerHTML = '';
     const nums = ['①', '②', '③'];
-    for (let k = 0; k < 3; k++) {
-      const h = game.history[k];
-      const current = !h && k === game.tier;
-      const era = h ? h.era : current ? game.era : null;
-      let state = h ? 'done' : current ? 'current' : 'pending';
-      let tag = h ? h.word : '';
-      if (current) {
-        if (game.collapsed) { state = 'dead'; tag = game.currentWord ? game.currentWord + '：崩壊' : '崩壊'; }
-        else if (!era) tag = '選択中…';
-        else tag = game.currentWord || '現在';
+    for (let k = 0; k < WD.MAX_WORDS; k++) {
+      const d = game.drops[k];
+      let state = 'pending', name = '空きスロット', tag = '';
+      if (d) {
+        const live = game.schedule.some((e) => e.drop === k && !e.fired);
+        name = d.word;
+        if (game.collapsed && k === game.drops.length - 1) { state = 'dead'; tag = '崩壊'; }
+        else if (live) { state = 'current'; tag = d.fired.length + '/' + d.total + ' 発動'; }
+        else { state = 'done'; tag = d.cancelled ? '上書き（' + d.fired.length + '件）' : '完了'; }
+      } else if (k === game.drops.length && game.currentWord) {
+        state = 'current'; name = game.currentWord; tag = '演算中…';
       }
       if (k > 0) {
         const ar = document.createElement('span');
@@ -406,11 +566,14 @@
       st.className = 'step ' + state;
       st.innerHTML = '<span class="step-num"></span><span class="step-era"></span><span class="step-word"></span>';
       st.querySelector('.step-num').textContent = nums[k];
-      st.querySelector('.step-era').textContent = era ? era.name : WD.TIERS[k].label;
+      st.querySelector('.step-era').textContent = name;
       st.querySelector('.step-word').textContent = tag ? '[' + tag + ']' : '';
-      st.title = WD.TIERS[k].name + '（' + WD.TIERS[k].label + '）' + (era ? '：' + era.yearLabel + ' ' + era.name + '（' + era.sub + '）' : '') + (h ? '　投下「' + h.word + '」→ ' + h.title : '');
+      st.title = d ? fmtDate(d.date) + '投下「' + d.word + '」→ ' + d.title : '単語の投下枠';
       el.appendChild(st);
     }
+  }
+  function updateDropLeft() {
+    $('drop-left').textContent = '残り' + (WD.MAX_WORDS - game.drops.length);
   }
 
   /* ---------- パラメータ表示 ---------- */
@@ -463,10 +626,6 @@
   }
   function scrollLog() { const l = $('log'); l.scrollTop = l.scrollHeight; }
   function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
-  function logEra(era) {
-    logEl('log-era', '◆ ' + esc(WD.TIERS[game.tier].name) + '　' + esc(era.yearLabel) + '　' + esc(era.name) + '（' + esc(era.sub) + '）');
-    logEl('log-note', esc(era.desc));
-  }
   let skipTyping = false;
   async function typeInto(el, text) {
     skipTyping = false;
@@ -500,7 +659,7 @@
       if (Array.from(w).length > 6) v.classList.add('small');
       c.title = 'クリックで「' + w + '」を入力';
       c.addEventListener('click', () => {
-        if (game.phase !== 'input') return;
+        if (game.phase !== 'live') return;
         Sfx.play('blip');
         $('word-input').value = w;
         updateCount();
@@ -522,98 +681,76 @@
     document.querySelectorAll('.card').forEach((c) => (c.disabled = !on));
   }
 
-  /* ---------- 単語投下 ---------- */
+  /* ---------- 単語投下 → 年次イベント予約 ---------- */
   async function dropWord(word) {
-    if (game.phase !== 'input') return;
+    if (game.phase !== 'live') return;
     word = word.trim().replace(/\s+/g, ' ');
     const len = Array.from(word).length;
     if (!len) { toast('単語を入力してください'); return; }
     if (len > WD.MAX_WORD_LEN) { toast(WD.MAX_WORD_LEN + '文字以内で入力してください'); return; }
+    if (game.drops.length >= WD.MAX_WORDS) { toast('投下できる単語は' + WD.MAX_WORDS + 'つまでです'); return; }
+
+    // 時間を止めて演算
+    const resume = clock.speed || clock.lastSpeed || 1;
     game.phase = 'busy';
+    setSpeed(0, true);
     game.usedWords.add(word);
     game.currentWord = word;
-    renderSteps();
     setFormEnabled(false);
     document.querySelectorAll('.card').forEach((c) => { if (c.querySelector('.vert').textContent === word) c.classList.add('used'); });
     $('word-input').value = '';
     updateCount();
+    renderSteps();
 
     const era = game.era;
-    logEl('log-drop', '▼ ' + esc(era.yearLabel) + 'の' + esc(era.place) + 'に <b>' + esc(word) + '</b> を投下！');
-    const thinking = logEl('log-thinking', WD.Oracle.online(settings) ? 'Gemini が時空を演算中' : '予言エンジンが歴史を演算中');
+    const mi = nowMonth();
+    const date = dateAt(mi);
+    logEl('log-drop', '▼ ' + esc(fmtDate(date)) + '、' + esc(era.place) + 'に <b>' + esc(word) + '</b> を投下！（時間停止）');
+    const thinking = logEl('log-thinking', WD.Oracle.online(settings) ? 'Gemini がこの先10年の歴史を演算中' : '予言エンジンがこの先10年の歴史を演算中');
     Sfx.play('drop');
     game.world.dropWord(word);
 
-    const ctx = { mode: game.mode, era, params: Object.assign({}, game.params), history: game.history, word };
+    const pending = game.schedule.filter((e) => !e.fired);
+    const ctx = {
+      mode: game.mode, era, word, date,
+      params: Object.assign({}, game.params),
+      drops: game.drops.map((d) => ({ word: d.word, title: d.title, date: d.date, fired: d.fired })),
+      pending: pending.map((e) => Object.assign(dateAt(e.month), { word: game.drops[e.drop].word, text: e.text })),
+    };
     const [res] = await Promise.all([WD.Oracle.drop(ctx, settings), sleep(1900)]);
+    if (game.phase !== 'busy') return; // 演算中にタイトルへ戻った等
     thinking.remove();
     if (res.error) toast('Gemini通信エラー：' + res.error + '　→ オフライン予言で代行しました', 6000);
     updateSourceHud(res.source);
-
     const result = res.result;
-    logEl('log-title', '【' + esc(result.title) + '】');
 
-    for (let s = 0; s < result.timeline.length; s++) {
-      const st = result.timeline[s];
-      await sleep(500);
-      animateYear(s === 0 ? era.year : result.timeline[s - 1].year, st.year, 700);
-      Sfx.play('stage');
-      const box = logEl('log-stage');
-      box.innerHTML = '<span class="chip"></span><span class="yr"></span><div class="txt"></div><div class="deltas"></div>';
-      box.querySelector('.chip').textContent = st.label;
-      box.querySelector('.yr').textContent = fmtStage(st.year);
-      await typeInto(box.querySelector('.txt'), st.text);
-
-      // パラメータ更新
-      const applied = {};
-      for (const p of WD.PARAMS) {
-        const d = st.delta[p.key] || 0;
-        let v = game.params[p.key] + d;
-        if (p.key === 'distortion') v = clamp(v, 0, 100);
-        applied[p.key] = v - game.params[p.key];
-        game.params[p.key] = v;
-      }
-      box.querySelector('.deltas').innerHTML = WD.PARAMS.filter((p) => applied[p.key]).map((p) => {
-        const d = applied[p.key];
-        return '<span style="color:' + p.color + '">' + p.name + (d > 0 ? '+' : '') + d + '</span>';
-      }).join('');
-      renderParams(applied);
-      game.world.setParams(game.params);
-      game.world.applyMap(st.map, era.name + '「' + word + '」');
-      game.world.syncAuto();
-      scrollLog();
-
-      const fail = checkCollapse();
-      if (fail) {
-        await sleep(1200);
-        gameOver(fail, st, word, result);
-        return;
-      }
-      await sleep(1500);
+    // 進行中の未来を、新しい歴史で上書き
+    if (pending.length) {
+      const words = [...new Set(pending.map((e) => game.drops[e.drop].word))];
+      pending.forEach((e) => { game.drops[e.drop].cancelled++; });
+      game.schedule = game.schedule.filter((e) => e.fired);
+      logEl('log-note warn', '⚠ 「' + esc(words.join('」「')) + '」がもたらすはずだった未来（' + pending.length + '件）は、新しい歴史で上書きされた。');
     }
+    const idx = game.drops.length;
+    game.drops.push({ word, title: result.title, date: { year: date.year, month: date.month }, fired: [], total: result.events.length, cancelled: 0 });
+    for (const ev of result.events) game.schedule.push(Object.assign({}, ev, { month: mi + ev.offset * 12, drop: idx, fired: false }));
 
-    game.history.push({ word, title: result.title, timeline: result.timeline, era });
+    logEl('log-title', '【' + esc(result.title) + '】の予言が刻まれた');
+    logEl('log-plan', result.events.map((ev) => {
+      const due = mi + ev.offset * 12;
+      const late = due > WD.GOAL_YEARS * 12 ? ' late' : '';
+      return '<span class="plan' + late + '">+' + ev.offset + '年 ' + esc(fmtDate(dateAt(due))) + '</span>';
+    }).join(''));
+
+    game.currentWord = '';
+    updateDropLeft();
+    dealCards();
+    game.phase = 'live';
+    setSpeed(resume, true);
     renderSteps();
-    game.phase = 'result';
-    $('drop-form').classList.add('hidden');
-    const nb = $('btn-next');
-    nb.textContent = game.tier < 2
-      ? WD.TIERS[game.tier + 1].name + '（' + WD.TIERS[game.tier + 1].label + '）の時代を選ぶ ▶'
-      : '2026年へ ― 最終到達点 ▶';
-    nb.classList.remove('hidden');
-    nb.focus();
-  }
-
-  function animateYear(from, to, ms) {
-    const t0 = performance.now();
-    const el = $('hud-year');
-    function step(now) {
-      const k = Math.min(1, (now - t0) / ms);
-      const y = Math.round(from + (to - from) * k);
-      el.textContent = k < 1 ? WD.fmtYear(y) : fmtStage(to);
-      if (k < 1) requestAnimationFrame(step);
-    }
-    requestAnimationFrame(step);
+    renderClock(true);
+    if (game.drops.length < WD.MAX_WORDS) setFormEnabled(true);
+    else { setFormEnabled(false); $('word-input').placeholder = '投下できる単語はもうありません'; }
   }
 
   /* ---------- 崩壊判定 ---------- */
@@ -634,23 +771,34 @@
     return null;
   }
 
-  function gameOver(kind, stage, word, result) {
+  function gameOver(kind, trigger) {
     game.phase = 'ended';
     game.collapsed = true;
+    setSpeed(0, true);
+    setFormEnabled(false);
     renderSteps();
     game.world.collapse();
     Sfx.play('collapse');
     const era = game.era;
+    const mi = nowMonth();
+    const date = trigger.date;
     const [reason, text] = COLLAPSE[kind];
     const brokenKey = kind.split('-')[0];
     const brokenParam = WD.PARAMS.find((p) => p.key === brokenKey);
-    const findings = era.yearLabel + '、' + era.name + '（' + era.sub + '）の' + era.place + 'に投下された「' + word + '」は「' + result.title + '」を引き起こした。その' + stage.label + '（' + fmtStage(stage.year) + '）、' +
-      brokenParam.name + 'が' + (kind.endsWith('-lo') ? '0を下回り' : '100を突破し') + '、' + text;
-    const words = game.history.map((h) => h.word).concat(word);
+    const words = game.drops.map((d) => d.word);
+    const cause = trigger.type === 'event'
+      ? '「' + trigger.drop.word + '」の投下から' + trigger.ev.offset + '年後の' + fmtDate(date) + '、'
+      : fmtDate(date) + '、日常のささいな出来事が最後のひと押しとなり、';
+    const findings = WD.fmtYear(era.year) + 'に始まった' + era.name + '（' + era.sub + '）の' + era.place + '。' +
+      (game.drops.length ? '投下された「' + words.join('」「') + '」は' + game.drops.map((d) => '「' + d.title + '」').join('、') + 'を引き起こした。' : '単語は一つも投下されなかった。') +
+      'そして開始から' + elapsedLabel(mi) + '後、' + cause + brokenParam.name + 'が' + (kind.endsWith('-lo') ? '0を下回り' : '100を突破し') + '、' + text;
+    const triggerText = trigger.type === 'event' ? '「+' + trigger.ev.offset + '年後」' + trigger.ev.text : '「日常の出来事」' + trigger.text;
     let no = 0;
-    for (const ch of words.join('')) no = (no * 31 + ch.charCodeAt(0)) % 9000;
-    const sns = '【WORDROP 滅亡調査報告書】' + game.history.map((h) => h.era.name + 'に「' + h.word + '」').concat(era.name + 'に「' + word + '」').join('→') +
-      'を投下したら、' + stage.label + 'に「' + reason + '」で文明が崩壊しました…。 #WORDROP #歴史改変';
+    for (const ch of words.join('') + era.name) no = (no * 31 + ch.charCodeAt(0)) % 9000;
+    const sns = '【WORDROP 滅亡調査報告書】' + era.name + '（' + WD.fmtYear(era.year) + '〜）' + (words.length ? 'に「' + words.join('」「') + '」を投下したら、' : 'で、') +
+      elapsedLabel(mi) + '後の' + fmtDate(date) + 'に「' + reason + '」で文明が崩壊しました…。 #WORDROP #歴史改変';
+    const rows = game.drops.map((d) => [fmtDate(d.date) + ' 投下', '「' + d.word + '」→ ' + d.title + '（' + d.fired.length + '件発動）', trigger.type === 'event' && d === trigger.drop]);
+    if (trigger.type === 'daily') rows.push([fmtDate(date), '日常：' + trigger.text, true]);
 
     // 崩れ落ちていく瞬間の浮島を撮影してから報告書を開く
     let snapshot = null;
@@ -660,10 +808,8 @@
       $('rp-no').textContent = '報告書 第' + String(1000 + no) + '号';
       $('collapse-reason').textContent = '「' + reason + '」（' + brokenParam.name + (kind.endsWith('-lo') ? '消滅' : '暴走') + '）';
       $('collapse-text').textContent = findings;
-      $('rp-trigger').textContent = '「' + stage.label + '」' + stage.text;
+      $('rp-trigger').textContent = triggerText;
       $('rp-image').src = snapshot;
-      const rows = game.history.map((h, i) => [WD.TIERS[i].name + ' ' + h.era.name, '「' + h.word + '」→ ' + h.title, false]);
-      rows.push([WD.TIERS[game.tier].name + ' ' + era.name, '「' + word + '」→ ' + result.title + '（' + stage.label + 'に崩壊）', true]);
       $('rp-history').innerHTML = rows.map(([l, r, hot]) => '<tr' + (hot ? ' class="hot"' : '') + '><td>' + esc(l) + '</td><td>' + esc(r) + '</td></tr>').join('');
       $('rp-params').innerHTML = WD.PARAMS.map((p) => {
         const broken = p.key === brokenKey;
@@ -678,46 +824,58 @@
         stamp: '滅亡',
         heading: '滅亡調査報告書：「' + reason + '」',
         body: findings,
-        rows: rows.map(([l, r, hot]) => [l, r, hot]),
+        extra: { label: '直接の引き金（' + fmtDate(date) + '）', text: triggerText },
+        rows,
         params: WD.PARAMS.map((p) => ({ name: p.name, value: game.params[p.key], color: p.dark, broken: p.key === brokenKey })),
-        extra: { label: '直接の引き金（' + stage.label + '）', text: stage.text },
-        caption: '証拠写真1　崩壊直後の浮島（空撮）',
+        caption: '証拠写真1　崩壊直後の浮島（' + fmtDate(date) + '）',
         snapshot,
       });
       $('collapse-modal').classList.remove('hidden');
     }, 2200);
   }
 
-  /* ---------- エンディング ---------- */
-  async function finale() {
-    if (game.phase !== 'result') return;
-    game.phase = 'busy';
-    $('btn-next').classList.add('hidden');
-    const lastYear = game.history[game.history.length - 1].timeline[2].year;
-    if (lastYear < 2026) animateYear(lastYear, 2026, 1600);
-    else $('hud-year').textContent = '2026年';
-    $('hud-era').textContent = '最終到達点　現代';
-    showBanner('FINAL', '2026年', '改変された歴史の、その先へ');
-    logEl('log-era', '◆ 2026年　最終到達点');
-    const thinking = logEl('log-thinking', '歴史教科書を編纂中');
+  /* ---------- エンディング（15年生存 or 3単語の影響が完了） ---------- */
+  async function finale(reason) {
+    if (game.phase !== 'live') return;
+    game.phase = 'final';
+    setSpeed(0, true);
+    setFormEnabled(false);
+    const mi = Math.min(nowMonth(), WD.GOAL_YEARS * 12);
+    const end = dateAt(mi);
+    const yearsLived = Math.max(1, Math.round(mi / 12));
+    const msg = reason === 'survived' ? WD.GOAL_YEARS + '年間を生き延びた！' : '3つの改変がすべて歴史に刻まれた';
+    showBanner('CLEAR', msg, fmtDate(end) + ' → そして2026年へ');
+    logEl('log-era', '◆ ' + esc(fmtDate(end)) + '　' + esc(msg));
+    const thinking = logEl('log-thinking', 'この' + yearsLived + '年間が2026年をどう変えたか、教科書を編纂中');
+    Sfx.play('fanfare');
     game.world.setEnv({ sky: game.params.distortion > 60 ? 'aurora' : game.params.technology > 70 ? 'cyber' : 'golden', weather: 'none' });
     game.world.syncAuto();
 
-    const ctx = { mode: game.mode, params: Object.assign({}, game.params), history: game.history };
+    const ctx = {
+      mode: game.mode, era: game.era, params: Object.assign({}, game.params), reason, end, yearsLived,
+      start: { year: game.era.year },
+      drops: game.drops.map((d) => ({ word: d.word, title: d.title, date: d.date, fired: d.fired })),
+    };
     const [res] = await Promise.all([WD.Oracle.finale(ctx, settings), sleep(2600)]);
+    if (game.phase !== 'final') return;
     thinking.remove();
     if (res.error) toast('Gemini通信エラー：' + res.error + '　→ オフラインで編纂しました', 6000);
     const r = res.result;
     logEl('log-title', '【' + esc(r.chapter) + '】');
+    $('hud-year').textContent = '2026年';
+    $('hud-era').textContent = '最終到達点　現代';
 
+    const rows = game.drops.map((d) => [fmtDate(d.date) + ' 投下', '「' + d.word + '」→ ' + d.title + '（' + d.fired.length + '件発動）', false])
+      .concat([['2026年', WD.describeState(game.params), true]]);
     $('tb-title').textContent = r.title;
     $('tb-chapter').textContent = r.chapter;
     $('tb-text').textContent = r.body;
     $('tb-image').src = game.world.snapshot();
+    $('tb-caption').textContent = '図1　' + fmtDate(end) + '、改変の15年を終えた浮島（空撮）';
     $('tb-keywords').innerHTML = r.keywords.map((k) => '<span class="kw">' + esc(k) + '</span>').join('');
-    $('tb-history').innerHTML = game.history.map((h, i) => {
-      return '<tr><td>' + esc(WD.TIERS[i].name) + ' ' + esc(h.era.yearLabel) + '<br>' + esc(h.era.name) + '</td><td>「' + esc(h.word) + '」→ ' + esc(h.title) + '</td></tr>';
-    }).join('') + '<tr><td>2026年</td><td>' + esc(WD.describeState(game.params)) + '</td></tr>';
+    $('tb-history').innerHTML =
+      '<tr><td>' + esc(WD.fmtYear(game.era.year)) + '〜</td><td>' + esc(game.era.name) + '（' + esc(game.era.sub) + '）の' + yearsLived + '年間</td></tr>' +
+      rows.map(([l, rr]) => '<tr><td>' + esc(l) + '</td><td>' + esc(rr) + '</td></tr>').join('');
     $('tb-params').innerHTML = WD.PARAMS.map((p) => '<span>' + p.name + ' <b style="color:' + p.dark + '">' + game.params[p.key] + '</b></span>').join('');
     $('sns-text').value = r.sns;
     $('btn-share-x').href = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(r.sns);
@@ -728,13 +886,11 @@
       stamp: '時空省検定済',
       heading: r.chapter,
       body: r.body,
-      rows: game.history.map((h, i) => [WD.TIERS[i].name + ' ' + h.era.name, '「' + h.word + '」→ ' + h.title, false])
-        .concat([['2026年', WD.describeState(game.params), true]]),
+      rows: [[WD.fmtYear(game.era.year) + '〜', game.era.name + 'の' + yearsLived + '年間', false]].concat(rows),
       params: WD.PARAMS.map((p) => ({ name: p.name, value: game.params[p.key], color: p.dark, broken: false })),
-      caption: '図1　2026年の浮島（空撮）',
+      caption: '図1　' + fmtDate(end) + 'の浮島（空撮）',
       snapshot: $('tb-image').src,
     });
-    Sfx.play('fanfare');
     game.phase = 'ended';
     await sleep(900);
     $('ending-modal').classList.remove('hidden');
@@ -830,17 +986,21 @@
   function setupGame() {
     $('word-input').addEventListener('input', updateCount);
     $('drop-form').addEventListener('submit', (e) => { e.preventDefault(); dropWord($('word-input').value); });
-    $('btn-next').addEventListener('click', () => {
-      if (game.phase !== 'result') return;
-      Sfx.play('select');
-      if (game.tier < 2) openDraft(game.tier + 1);
-      else finale();
-    });
     $('btn-reroll').addEventListener('click', reroll);
+    document.querySelectorAll('.spd').forEach((b) => b.addEventListener('click', () => {
+      if (game.phase !== 'live') return;
+      setSpeed(+b.dataset.speed);
+    }));
     document.addEventListener('keydown', (e) => {
-      if (game.phase !== 'draft' || $('draft-modal').classList.contains('hidden') || !$('settings-modal').classList.contains('hidden')) return;
-      if (e.key >= '1' && e.key <= '3' && game.draft[+e.key - 1]) pickEra(game.draft[+e.key - 1]);
-      else if (e.key === 'r' || e.key === 'R') reroll();
+      if (!$('settings-modal').classList.contains('hidden')) return;
+      if (game.phase === 'draft' && !$('draft-modal').classList.contains('hidden')) {
+        if (e.key >= '1' && e.key <= '3' && game.draft[+e.key - 1]) pickEra(game.draft[+e.key - 1]);
+        else if (e.key === 'r' || e.key === 'R') reroll();
+        return;
+      }
+      if (game.phase !== 'live' || /INPUT|TEXTAREA/.test(document.activeElement.tagName)) return;
+      if (e.key === ' ') { e.preventDefault(); setSpeed(clock.speed ? 0 : clock.lastSpeed || 1); }
+      else if (e.key === '1' || e.key === '2' || e.key === '4') setSpeed(+e.key);
     });
     $('log').addEventListener('click', () => { skipTyping = true; });
     $('btn-mute').addEventListener('click', () => {

@@ -373,10 +373,10 @@ WD.eraEnv = function (era) {
   return Object.assign({}, WD.BIOMES[era.biome].env, era.env || {});
 };
 
-/* モード・ティアに合う時代から n 個を抽選（exclude の id は可能な限り避ける） */
+/* モード（とティア。null なら全期）に合う時代から n 個を抽選（exclude の id は可能な限り避ける） */
 WD.drawEras = function (modeKey, tier, n, exclude) {
   const mode = WD.MODES[modeKey];
-  const pool = WD.ERAS.filter((e) => e.tier === tier && mode.regions.includes(e.region));
+  const pool = WD.ERAS.filter((e) => (!tier || e.tier === tier) && mode.regions.includes(e.region));
   let cand = pool.filter((e) => !(exclude || []).includes(e.id));
   if (cand.length < n) cand = pool.slice();
   const out = [];

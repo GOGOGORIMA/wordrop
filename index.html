@@ -28,9 +28,9 @@
       <div id="title-menu" class="hidden mt-8 w-full max-w-sm">
         <div class="menu-frame p-4 sm:p-5">
           <p class="font-pixel text-[10px] text-[#ffd23f] mb-3">SELECT MODE</p>
-          <button class="menu-item" data-mode="japan"><span class="cursor">▶</span>日本史モード<small>旧石器から大正ロマンまで、日本史20時代から抽選</small></button>
-          <button class="menu-item" data-mode="world"><span class="cursor">▶</span>世界史モード<small>古代エジプトから冷戦まで、世界史30時代から抽選</small></button>
-          <button class="menu-item" data-mode="chaos"><span class="cursor">▶</span>全歴史カオスモード<small>日本も世界も入り乱れる全50時代から抽選</small></button>
+          <button class="menu-item" data-mode="chaos"><span class="cursor">▶</span>全歴史モード<small>日本史・世界史の全50時代から3つを抽選して1つを選ぶ</small></button>
+          <button class="menu-item" data-mode="japan"><span class="cursor">▶</span>日本史モード<small>日本史20時代だけから抽選</small></button>
+          <button class="menu-item" data-mode="world"><span class="cursor">▶</span>世界史モード<small>世界史30時代だけから抽選</small></button>
 
           <div class="mt-4 pt-4 border-t-2 border-dashed border-[#5a5070] flex items-center justify-between gap-3">
             <button id="btn-settings" class="metal-btn text-xs px-3 py-2">⚙ API設定</button>
@@ -62,6 +62,8 @@
             <div id="hud-era" class="font-dot text-sm text-[#ffe9a8] hud-shadow mt-1">---</div>
           </div>
           <div class="absolute bottom-2 left-3 pointer-events-none font-pixel text-[8px] hud-shadow" id="hud-source"></div>
+          <div id="hud-pause" class="hud-pause hidden">❚❚ PAUSE</div>
+          <div id="map-news" class="map-news hidden"></div>
           <div id="era-banner" class="era-banner hidden"></div>
           <div id="tooltip" class="map-tooltip hidden"></div>
         </div>
@@ -82,8 +84,30 @@
           </div>
         </header>
 
-        <!-- 3時代の進行ステップバー -->
-        <nav id="steps" class="steps" aria-label="時代の進行状況"></nav>
+        <!-- 時計と速度調整 -->
+        <div class="slate clock-slate">
+          <div class="clock-row">
+            <div class="clock-date">
+              <span id="clock-year" class="clock-year">----年</span>
+              <span id="clock-month" class="clock-month">-月</span>
+              <span id="clock-season" class="clock-season"></span>
+            </div>
+            <div class="speed-btns" role="group" aria-label="時間の速さ">
+              <button class="spd" data-speed="0" title="一時停止（Space）">⏸ PAUSE</button>
+              <button class="spd" data-speed="1" title="標準：1分＝1年 / 5秒＝1ヶ月">▶ ×1</button>
+              <button class="spd" data-speed="2" title="2倍速：30秒＝1年">▶▶ ×2</button>
+              <button class="spd" data-speed="4" title="4倍速：15秒＝1年">▶▶▶ ×4</button>
+            </div>
+          </div>
+          <div class="year-gauge" title="今年の進み具合"><div id="year-gauge-fill" class="year-gauge-fill"></div></div>
+          <div class="clock-sub">
+            <span id="clock-elapsed">経過 0年0ヶ月 / 15年</span>
+            <span id="clock-next">次の激変：―</span>
+          </div>
+        </div>
+
+        <!-- 投下スロット（最大3単語） -->
+        <nav id="steps" class="steps" aria-label="投下した単語"></nav>
 
         <!-- パラメータ -->
         <div class="slate params-slate">
@@ -93,7 +117,7 @@
 
         <!-- 激変ログ -->
         <div class="slate log-slate flex-1 min-h-0 flex flex-col">
-          <div class="slate-title flex justify-between"><span>歴史の激変ログ</span><span class="text-[#8a8070]">10年後 → 50年後 → 200年後</span></div>
+          <div class="slate-title flex justify-between"><span>歴史の激変ログ</span><span class="text-[#8a8070]">投下から +1〜+10年後の年次イベント</span></div>
           <div id="log" class="log flex-1 overflow-y-auto pr-1"></div>
         </div>
 
@@ -104,7 +128,7 @@
               <input id="word-input" type="text" maxlength="15" placeholder="単語を入力（15文字以内）" class="word-input w-full">
               <span id="char-count" class="absolute right-2 bottom-1 font-pixel text-[7px] text-[#8a8070]">0/15</span>
             </div>
-            <button id="btn-drop" type="submit" class="drop-btn">歴史に<br>投下</button>
+            <button id="btn-drop" type="submit" class="drop-btn">歴史に投下<small id="drop-left">残り3</small></button>
           </form>
           <button id="btn-next" type="button" class="next-btn hidden w-full">次の時代へ ▶</button>
           <div id="cards" class="cards"></div>
@@ -123,7 +147,7 @@
       </div>
       <div id="draft-cards" class="draft-cards mt-4"></div>
       <div class="flex flex-wrap items-center justify-between gap-3 mt-4">
-        <p class="font-dot text-[11px] text-[#9a94b8]">キー操作：1〜3で選択 / Rで引き直し。選んだ時代の補正が文明パラメータに加わります。</p>
+        <p class="font-dot text-[11px] text-[#9a94b8]">キー操作：1〜3で選択 / Rで引き直し。選んだ時代の開始年から15年間、時計は止まらずに進みます。</p>
         <button id="btn-reroll" class="metal-btn text-xs px-4 py-2" type="button">🎲 別の時代を引き直す（残り1回）</button>
       </div>
     </div>
@@ -167,7 +191,7 @@
         <div class="tb-body">
           <figure class="tb-figure">
             <img id="tb-image" alt="2026年の浮島">
-            <figcaption>図1　2026年の浮島（空撮）</figcaption>
+            <figcaption id="tb-caption">図1　浮島の空撮</figcaption>
           </figure>
           <p id="tb-text" class="tb-text"></p>
         </div>

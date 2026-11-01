@@ -432,3 +432,76 @@ body { font-family: 'DotGothic16', sans-serif; -webkit-font-smoothing: none; }
   .card .num { font-size: 9px; top: 2px; left: 4px; }
   .card .seal { width: 8px; height: 8px; bottom: 4px; right: 4px; }
 }
+
+/* ---------- リアルタイム時計 ---------- */
+.clock-slate { padding-top: 8px; }
+.clock-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.clock-date { display: flex; align-items: baseline; gap: 6px; white-space: nowrap; }
+.clock-year { font-family: 'Press Start 2P', monospace; font-size: 13px; color: #fff; text-shadow: 2px 2px 0 #000; }
+.clock-month { font-family: 'Press Start 2P', monospace; font-size: 13px; color: var(--gold); text-shadow: 2px 2px 0 #000; }
+.clock-season { font-size: 12px; color: #c8c0b0; }
+.speed-btns { display: flex; gap: 3px; }
+.spd {
+  font-family: 'DotGothic16', sans-serif; font-size: 11px; color: #c8c0b0; cursor: pointer; white-space: nowrap;
+  padding: 3px 6px; background: linear-gradient(#3a3a44, #24242c); border: 2px solid #0e0e14;
+  box-shadow: inset 1px 1px 0 rgba(255,255,255,0.15);
+}
+.spd:hover { color: #fff; }
+.spd.active { color: #1a1a22; background: linear-gradient(#ffe68a, #e8a020); box-shadow: inset 1px 1px 0 #fff, 0 0 6px rgba(255,210,63,0.6); }
+.spd[data-speed="0"].active { background: linear-gradient(#ff8a7a, #c0302a); color: #fff; }
+.year-gauge {
+  position: relative; height: 10px; margin-top: 7px; background: #0c0c12; border: 2px solid #000;
+}
+.year-gauge::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(90deg, transparent 0 calc(8.3333% - 1px), rgba(255,255,255,0.18) calc(8.3333% - 1px) 8.3333%);
+}
+.year-gauge-fill { height: 100%; width: 0; background: linear-gradient(90deg, #4fd8ff, #9fe8ff); }
+.clock-sub { display: flex; justify-content: space-between; gap: 8px; margin-top: 4px; font-size: 11px; color: #9a9488; }
+#clock-next { color: #ffb0f0; text-align: right; }
+
+.hud-pause {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%); pointer-events: none;
+  font-family: 'Press Start 2P', 'DotGothic16', monospace; font-size: 12px; color: #fff; padding: 6px 10px;
+  background: rgba(10,8,30,0.75); border: 2px solid #e8e0ff; animation: blink 1.2s steps(1) infinite;
+}
+.map-news {
+  position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%); width: min(92%, 620px); pointer-events: none;
+  font-family: 'DotGothic16', sans-serif; font-size: 13px; line-height: 1.5; color: #fff; text-align: left;
+  padding: 6px 12px; background: rgba(12,8,30,0.85); border: 2px solid var(--gold); box-shadow: 3px 3px 0 #000;
+}
+.map-news.show { animation: news 5.2s ease forwards; }
+@keyframes news { 0% { opacity: 0; transform: translate(-50%, 10px); } 8% { opacity: 1; transform: translate(-50%, 0); } 85% { opacity: 1; } 100% { opacity: 0; } }
+
+/* ---------- ログ（リアルタイム） ---------- */
+.log-year { color: #8a8070; text-align: center; font-size: 11px; margin: 6px 0 2px; letter-spacing: 0.1em; }
+.log-mini { color: #b8b0a0; font-size: 12px; margin: 2px 0; }
+.log-mini .deltas { font-size: 10px; }
+.log-mini .deltas span { margin-right: 4px; }
+.log-plan { display: flex; flex-wrap: wrap; gap: 3px; margin: 2px 0 6px; }
+.log-plan .plan { font-size: 10px; background: #2a2440; color: #ffb0f0; padding: 0 5px; border: 1px solid #4a3a70; }
+.log-plan .plan.late { opacity: 0.45; text-decoration: line-through; }
+.log-note.warn { color: #ff9a6a; }
+.drop-btn small { display: block; font-size: 10px; color: #ffd0c0; }
+
+@media (max-width: 760px), (max-width: 1024px) and (orientation: portrait) {
+  .map-pane { height: 30vh; height: 30dvh; }
+  .clock-slate { padding: 4px 6px 5px !important; }
+  .clock-row { flex-wrap: nowrap; gap: 4px; }
+  .clock-year, .clock-month { font-size: 10px; }
+  .clock-season { font-size: 10px; }
+  .speed-btns { gap: 2px; }
+  .spd { font-size: 9.5px; padding: 2px 3px; }
+  .year-gauge { height: 6px; margin-top: 4px; border-width: 1px; }
+  .clock-sub { font-size: 9.5px; margin-top: 2px; }
+  .hud-pause { font-size: 8px; padding: 3px 6px; top: 4px; }
+  .map-news { font-size: 10.5px; bottom: 14px; padding: 3px 7px; line-height: 1.35; }
+  .drop-btn small { font-size: 9px; }
+}
+@media (max-width: 760px) and (max-height: 640px) {
+  .map-pane { height: 27vh; height: 27dvh; }
+  .icon-btn { width: 20px; height: 20px; font-size: 10px; }
+  .card { height: 38px; }
+  .card .num, .card .seal { display: none; }
+  .panel > .slate { margin-top: 4px; }
+}
