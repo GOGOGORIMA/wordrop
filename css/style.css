@@ -576,3 +576,95 @@ body { font-family: 'DotGothic16', sans-serif; -webkit-font-smoothing: none; }
   .step.pending .step-word { display: none; }
   .map-news { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 }
+
+/* ---------- 浮島を主役にするレイアウト（右パネルをスリムに） ---------- */
+.game-grid { grid-template-columns: minmax(0, 1fr) clamp(300px, 26vw, 350px); }
+.panel { padding: 10px 10px 10px; }
+.panel > .slate { margin-top: 6px; padding: 6px 8px 7px; border-width: 2px; }
+.panel header .font-pixel { font-size: 11px; }
+.panel .rivet { width: 7px; height: 7px; }
+.slate-title { font-size: 11px; }
+.params-slate .slate-title { display: none; }
+.params { grid-template-columns: 1fr 1fr; gap: 5px 10px; margin-top: 0; }
+.param { grid-template-columns: 28px 1fr 24px; gap: 4px; }
+.param-name { font-size: 12px; }
+.param-val { font-size: 8px; }
+.bar { height: 10px; }
+.bar-fill::before { top: 1px; height: 2px; }
+.delta-pop { right: 28px; font-size: 8px; }
+.log { font-size: 12px; line-height: 1.55; min-height: 80px; }
+.log-stage .chip { font-size: 7px; }
+.clock-year, .clock-month { font-size: 11px; }
+.spd { font-size: 10px; padding: 3px 3px; }
+.spd-note { display: none; }
+.step { padding: 3px 3px 4px; }
+.step-num, .step-era { font-size: 11px; }
+.step-word { font-size: 10px; }
+.word-input { font-size: 15px; padding: 6px 8px; }
+.drop-btn { font-size: 13px; padding: 4px 9px; min-width: 76px; }
+.cards { margin-top: 8px; gap: 8px; }
+.card { width: 58px; height: 104px; }
+.card .vert { font-size: 13px; max-height: 80px; }
+.card .vert.small { font-size: 11px; }
+.cards.locked .card { filter: grayscale(0.9) brightness(0.6); pointer-events: none; }
+.map-pane { cursor: grab; }
+#world.grabbing { cursor: grabbing; }
+#world { touch-action: none; }
+
+/* マップのズームボタン */
+.map-ctrl { position: absolute; right: 8px; top: 8px; display: flex; flex-direction: column; gap: 4px; z-index: 4; }
+.map-ctrl button {
+  width: 28px; height: 28px; font-size: 16px; line-height: 1; color: #fff; cursor: pointer;
+  background: rgba(12,8,30,0.75); border: 2px solid #e8e0ff; box-shadow: 2px 2px 0 #000;
+}
+.map-ctrl button:hover { background: rgba(60,40,120,0.85); }
+
+/* 次の史実イベント */
+.clock-hist { margin-top: 4px; font-size: 11px; color: #ffb0a0; background: rgba(120,20,10,0.25); border-left: 3px solid #c0201a; padding: 2px 6px; }
+.clock-hist.soon { color: #fff; background: rgba(200,30,20,0.45); animation: blink 1s steps(1) infinite; }
+
+/* 神託クールタイム */
+.oracle-lock { margin-top: 6px; }
+.lock-text { font-size: 11px; color: #ffd0a0; }
+.lock-bar { height: 8px; margin-top: 3px; background: #0c0c12; border: 2px solid #000; }
+.lock-fill { height: 100%; width: 0; background: linear-gradient(90deg, #8a5aff, #ff8af0); transition: width .4s steps(8); }
+.drop-btn:disabled { cursor: not-allowed; }
+.log-note.unlock { color: #ffe08a; }
+
+/* 史実イベント割り込み */
+.hist-alert {
+  position: absolute; left: 50%; top: 22%; transform: translateX(-50%); width: min(90%, 560px); z-index: 6; pointer-events: none;
+  text-align: center; padding: 14px 16px; background: rgba(40,0,0,0.88); border: 4px solid #ff3a2a;
+  box-shadow: 0 0 0 4px #4a0000, 0 0 40px rgba(255,40,20,0.7);
+}
+.hist-alert.show { animation: alertIn .35s steps(4) both, alertPulse .5s steps(2) .35s infinite; }
+@keyframes alertIn { from { transform: translateX(-50%) scale(1.6); opacity: 0; } }
+@keyframes alertPulse { 50% { border-color: #ffd23f; } }
+.ha-title { font-family: 'DotGothic16', sans-serif; font-size: clamp(16px, 2.4vw, 24px); color: #ff5a4a; text-shadow: 2px 2px 0 #000; }
+.ha-name { font-family: 'DotGothic16', sans-serif; font-size: clamp(18px, 2.8vw, 30px); color: #fff; margin-top: 6px; text-shadow: 3px 3px 0 #000; }
+.ha-sub { font-size: 12px; color: #ffc0b0; margin-top: 4px; }
+.log-hist-alert { color: #ff6a5a; font-weight: bold; margin: 6px 0 2px; }
+.log-stage.hist { border-left-color: #ff3a2a; background: rgba(160,20,10,0.15); }
+.log-stage.hist .chip { background: #ff3a2a; color: #fff; }
+.hist-title { color: #ffb0a0; }
+.hist-fact { color: #8a8070; font-size: 10px; }
+.log-note.hist-note { color: #ff9a8a; }
+.ms-table tr.ms-hist td:first-child { color: #ff8a7a; }
+
+@media (max-width: 760px), (max-width: 1024px) and (orientation: portrait) {
+  .map-ctrl { right: 4px; top: 4px; gap: 2px; }
+  .map-ctrl button { width: 22px; height: 22px; font-size: 12px; }
+  .clock-hist { font-size: 9.5px; margin-top: 2px; padding: 1px 4px; }
+  .hist-alert { top: 10%; padding: 8px; }
+  .lock-text { font-size: 10px; }
+  .oracle-lock { margin-top: 3px; }
+  .lock-bar { height: 5px; border-width: 1px; }
+  .card { width: auto; height: 54px; }
+}
+.bar-fill::after { background: repeating-linear-gradient(90deg, transparent 0 4px, #0c0c12 4px 5px); }
+.clock-sub { flex-wrap: wrap; font-size: 10px; }
+.clock-sub span { white-space: nowrap; }
+.game-grid { grid-template-columns: minmax(0, 1fr) clamp(300px, 26vw, 360px); }
+@media (max-width: 1024px) and (min-aspect-ratio: 1/1) and (max-height: 600px) {
+  .game-grid { grid-template-columns: minmax(0, 1fr) 300px; }
+}

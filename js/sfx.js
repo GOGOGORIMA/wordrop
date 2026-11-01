@@ -57,6 +57,8 @@
         case 'stage': tone(784, 0.07, 'square', 0.05); tone(1175, 0.12, 'square', 0.05, null, 0.06); break;
         case 'type': tone(1200 + Math.random() * 200, 0.02, 'square', 0.015); break;
         case 'collapse': noise(1.4, 0.3); [392, 330, 262, 196, 131].forEach((f, i) => tone(f, 0.35, 'sawtooth', 0.06, null, i * 0.22)); break;
+        case 'alarm': for (let i = 0; i < 4; i++) { tone(880, 0.18, 'sawtooth', 0.05, null, i * 0.36); tone(620, 0.18, 'sawtooth', 0.05, null, i * 0.36 + 0.18); } break;
+        case 'unlock': [660, 880, 1320].forEach((f, i) => tone(f, 0.12, 'triangle', 0.07, null, i * 0.09)); break;
         case 'fanfare': [523, 523, 523, 698, 880, 784, 1046].forEach((f, i) => tone(f, i === 6 ? 0.6 : 0.14, 'square', 0.06, null, i * 0.13)); break;
       }
     },

@@ -165,9 +165,9 @@ WD.ERAS = [
     mod: { population: -3, technology: 0, order: -12, distortion: 0 }, symbols: [['castle', 1], ['fort', 2], ['ruins', 1]],
   },
   {
-    id: 23, tier: 2, region: 'japan', name: '戦国末期', sub: '織田信長の天下布武', year: 1575, yearLabel: '1575年',
+    id: 23, tier: 2, region: 'japan', name: '戦国末期', sub: '織田信長の天下布武', year: 1570, yearLabel: '1570年',
     place: '尾張・美濃', biome: 'temperate',
-    desc: '「天下布武」を掲げた織田信長が鉄砲隊で長篠を制し、楽市楽座で経済を動かした。',
+    desc: '「天下布武」を掲げた織田信長が、鉄砲と楽市楽座で天下統一へ突き進む。',
     who: '足軽たち', ruler: '織田信長', hooks: ['天下布武', '長篠の鉄砲隊', '楽市楽座'],
     mod: { population: 0, technology: 8, order: -5, distortion: 0 }, symbols: [['castle', 2], ['fort', 1], ['market', 1]],
   },
@@ -207,9 +207,9 @@ WD.ERAS = [
     mod: { population: 5, technology: -3, order: 5, distortion: 0 }, symbols: [['yurt', 5], ['fort', 1]],
   },
   {
-    id: 29, tier: 2, region: 'world', name: '14世紀欧州', sub: '黒死病と魔女狩り', year: 1348, yearLabel: '1348年',
+    id: 29, tier: 2, region: 'world', name: '14世紀欧州', sub: '黒死病と魔女狩り', year: 1337, yearLabel: '1337年',
     place: 'ヨーロッパ', biome: 'wasteland',
-    desc: 'ペストが大陸を襲い人口の3分の1が失われた。恐怖は異端審問と魔女狩りへと向かう。',
+    desc: '英仏の百年戦争が始まり、東方からは黒死病の影が迫る。恐怖はやがて異端審問と魔女狩りへ。',
     who: '怯える農民', ruler: '異端審問官', hooks: ['黒死病（ペスト）', '魔女狩り', 'くちばしマスクのペスト医師'],
     mod: { population: -12, technology: 0, order: -5, distortion: 3 }, symbols: [['church', 1], ['ruins', 2], ['house', 2]],
     env: { sky: 'storm' },

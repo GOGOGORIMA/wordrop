@@ -151,6 +151,8 @@
 
       this.generate();
       this.makeSkyDecor();
+      this.view = { zoom: 1, px: 0, py: 0 };
+      this.computeFit();
       this.loop = this.loop.bind(this);
       this.running = false;
     }
@@ -243,6 +245,42 @@
         cur = Math.max(1, Math.min(cur, this.h[y * N + x]));
       }
     }
+
+    /* ---------- カメラ（島がキャンバスの約9割を占めるよう自動フィット＋ズーム・パン） ---------- */
+    computeFit() {
+      let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+      for (let i = 0; i < N * N; i++) {
+        if (this.type[i] === VOID) continue;
+        const x = i % N, y = (i / N) | 0;
+        const sx = OX + (x - y) * 4, gy = OY + (x + y) * 2;
+        x0 = Math.min(x0, sx - 4); x1 = Math.max(x1, sx + 4);
+        y0 = Math.min(y0, gy - this.h[i] * HS - 10);
+        y1 = Math.max(y1, gy + 6 + this.depth[i] * 0.3);
+      }
+      const z = Math.min((W * 0.92) / (x1 - x0), (H * 0.9) / (y1 - y0));
+      this.fit = { z, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2 };
+    }
+    cam() {
+      const z = this.fit.z * this.view.zoom;
+      return { z, ox: W / 2 - this.fit.cx * z + this.view.px, oy: H * 0.5 - this.fit.cy * z + this.view.py };
+    }
+    toWorld(sx, sy) { const c = this.cam(); return { x: (sx - c.ox) / c.z, y: (sy - c.oy) / c.z }; }
+    zoomAt(f, sx, sy) {
+      if (sx === undefined) { sx = W / 2; sy = H / 2; }
+      const before = this.toWorld(sx, sy);
+      this.view.zoom = Math.max(0.6, Math.min(4, this.view.zoom * f));
+      const c = this.cam();
+      this.view.px += sx - (before.x * c.z + c.ox);
+      this.view.py += sy - (before.y * c.z + c.oy);
+      this.clampView();
+    }
+    panBy(dx, dy) { this.view.px += dx; this.view.py += dy; this.clampView(); }
+    clampView() {
+      const lx = W * 0.55 * this.view.zoom, ly = H * 0.55 * this.view.zoom;
+      this.view.px = Math.max(-lx, Math.min(lx, this.view.px));
+      this.view.py = Math.max(-ly, Math.min(ly, this.view.py));
+    }
+    resetView() { this.view = { zoom: 1, px: 0, py: 0 }; }
 
     idx(x, y) { return x < 0 || y < 0 || x >= N || y >= N ? -1 : y * N + x; }
     heightAt(x, y) { const i = this.idx(x, y); return i < 0 || this.type[i] === VOID ? 0 : this.h[i]; }
@@ -794,6 +832,7 @@
       this.drops = this.drops.filter((d) => !(d.state === 'hit' && d.t > 2.2));
 
       this.flash = Math.max(0, this.flash - dt * 1.6);
+      this.alert = Math.max(0, (this.alert || 0) - dt * 0.35);
       this.shake = Math.max(0, this.shake - dt * 14);
     }
 
@@ -863,16 +902,21 @@
       for (const c of this.clouds) if (!c.front) this.drawCloud(g, c, 0.85);
 
       // 海
-      this.drawSea(g);
+      const cam = this.cam();
+      this.drawSea(g, cam);
 
-      g.translate(shx, shy + Math.round(Math.sin(t * 0.8) * 2));
+      // ここから島（ワールド座標）をカメラで拡大して描く
+      g.imageSmoothingEnabled = false;
+      const worldT = () => g.setTransform(cam.z, 0, 0, cam.z, cam.ox + shx, cam.oy + shy + Math.round(Math.sin(t * 0.8) * 2));
+      worldT();
+      const seaTopW = (SEA_Y + 10 - cam.oy) / cam.z;
 
       // 裏側の滝
       const mouthFront = this.mouth && (this.mouth.dx > 0 || this.mouth.dy > 0);
-      if (this.mouth && !mouthFront) this.drawWaterfall(g);
+      if (this.mouth && !mouthFront) this.drawWaterfall(g, seaTopW);
       g.drawImage(this.tcache, 0, 0);
       this.drawWaterSparkle(g);
-      if (this.mouth && mouthFront) this.drawWaterfall(g);
+      if (this.mouth && mouthFront) this.drawWaterfall(g, seaTopW);
 
       // スプライト（深度ソート）
       const items = [];
@@ -889,8 +933,10 @@
 
       // 夜の暗さ＋窓明かり
       if (this.nightCur > 0.05) {
+        g.setTransform(1, 0, 0, 1, 0, 0);
         g.fillStyle = 'rgba(6,8,30,' + (0.42 * this.nightCur).toFixed(2) + ')';
-        g.fillRect(-10, 0, W + 20, H);
+        g.fillRect(0, 0, W, H);
+        worldT();
         for (const b of this.buildings) {
           if (b.removing || b.fall < 0) continue;
           const p = this.screen(b.x, b.y, this.bh(b));
@@ -916,8 +962,10 @@
         }
       }
 
-      // パーティクル
+      // パーティクル（天候は画面座標、それ以外はワールド座標）
+      const drawParticles = (weather) => {
       for (const p of this.particles) {
+        if (!!p.weather !== weather) continue;
         const a = Math.max(0, Math.min(1, p.life / p.max));
         g.globalAlpha = p.weather ? 0.85 : a;
         g.fillStyle = p.color;
@@ -928,11 +976,22 @@
         }
       }
       g.globalAlpha = 1;
+      };
+      drawParticles(false);
 
       // 単語の落下
       for (const d of this.drops) this.drawDrop(g, d);
 
       g.restore();
+      drawParticles(true);
+      // 史実イベント割り込みの赤い警報
+      if (this.alert > 0) {
+        const a = Math.min(1, this.alert) * (0.18 + 0.14 * Math.abs(Math.sin(t * 7)));
+        g.fillStyle = 'rgba(255,20,20,' + a.toFixed(3) + ')';
+        g.fillRect(0, 0, W, H);
+        g.fillStyle = 'rgba(255,40,30,' + (a * 2.5).toFixed(3) + ')';
+        g.fillRect(0, 0, W, 6); g.fillRect(0, H - 6, W, 6); g.fillRect(0, 0, 6, H); g.fillRect(W - 6, 0, 6, H);
+      }
       // 手前の雲
       for (const c of this.clouds) if (c.front) this.drawCloud(g, c, 0.55);
 
@@ -957,7 +1016,7 @@
       g.globalAlpha = 1;
     }
 
-    drawSea(g) {
+    drawSea(g, cam) {
       const rows = H - SEA_Y;
       for (let y = 0; y < rows; y += 2) {
         const f = y / rows;
@@ -967,9 +1026,10 @@
       }
       // 島の影
       g.fillStyle = 'rgba(0,0,20,0.28)';
+      const scx = cam ? cam.ox + this.fit.cx * cam.z : OX, sz = cam ? cam.z : 1;
       for (let k = 0; k < 6; k++) {
-        const w = 360 - k * 40;
-        g.fillRect(OX - w / 2, SEA_Y + 22 + k * 3, w, 3);
+        const w = (360 - k * 40) * sz;
+        g.fillRect(scx - w / 2, SEA_Y + 22 + k * 3, w, 3);
       }
       g.fillStyle = rgb2css(lerpRGB(this.seaCur[2], [255, 255, 255], 0.3));
       for (const wv of this.waves) {
@@ -978,12 +1038,12 @@
       }
     }
 
-    drawWaterfall(g) {
+    drawWaterfall(g, seaTopW) {
       const m = this.mouth;
       const i = m.y * N + m.x;
       const p = this.screen(m.x, m.y, this.h[i]);
       const sx = p.sx + m.dx * 4 - m.dy * 4, sy = p.sy + 2 + (m.dx + m.dy) * 2;
-      const seaTop = SEA_Y + 10;
+      const seaTop = seaTopW;
       const sea = this.seaCur;
       for (let y = sy; y < seaTop; y++) {
         const f = (y - sy) / (seaTop - sy);
@@ -1098,7 +1158,9 @@
     }
 
     /* マウス位置の建物を返す */
-    pick(mx, my) {
+    pick(sx, sy) {
+      const wp = this.toWorld(sx, sy);
+      const mx = wp.x, my = wp.y;
       const sorted = this.buildings.slice().sort((a, b) => (b.x + b.y) - (a.x + a.y));
       for (const b of sorted) {
         if (b.removing || b.fall < 0) continue;
@@ -1150,6 +1212,7 @@
           fall: 0, vy: 0, alpha: 1, removing: false, sink: 0, emitT: w.rnd(),
         }));
       }
+      w.computeFit();
       w.dirty = true;
       return w;
     }

@@ -24,7 +24,7 @@
       maps: [{ add: [['fort', 2]], sky: 'storm' }, { add: [['castle', 1], ['fort', 1]], remove: [['house', 1]], sky: 'crimson', weather: 'ash' }, { add: [['ruins', 2], ['statue', 1]], sky: 'dusk', land: 'wasteland', weather: 'none' }],
     },
     social: {
-      kw: ['残業', '有給', '休暇', '定時', '終身雇用', '年功序列', '確定申告', '法', '民主主義', '選挙', '議会', '憲法', '学校', '偏差値', '受験', '満員電車', 'リモート', 'テレワーク', '宅配', '断捨離', '二度寝', 'ふるさと納税', '株主優待', 'マイナンバー', '防犯カメラ', '監視', '警察', 'ルール', 'マナー', '制度', '義務', '給食', '年金'],
+      kw: ['残業', '有給', '休暇', '定時', '終身雇用', '年功序列', '確定申告', '法', '民主主義', '選挙', '議会', '憲法', '学校', '偏差値', '受験', '満員電車', 'リモート', 'テレワーク', '宅配', '断捨離', '二度寝', 'ふるさと納税', '株主優待', 'マイナンバー', '防犯カメラ', '監視', '警察', 'ルール', 'マナー', '制度', '義務', '給食', '年金', 'コンプライアンス', 'ハラスメント', '労働', '監査', '規制', '申請', '手続', '会議', '稟議', 'ガバナンス', '働き方'],
       base: { population: -4, technology: 4, order: 18, distortion: 9 },
       titles: ['{w}奉行の設置', '{w}令の発布', '{w}国家の完成'],
       t10: ['{ruler}が「{w}」を法として導入。{who}は戸惑いながらも従った。', '{w}が身分制度に組み込まれ、新たな役職「{w}奉行」が置かれた。', '{w}を拒んだ者は島の端に追放される決まりができた。'],
@@ -246,6 +246,7 @@
       const last = ctx.drops[ctx.drops.length - 1];
       const tail = last.fired[last.fired.length - 1];
       if (tail) body += '最後の神託がもたらした光景は「' + tail.text.replace(/。$/, '') + '」と記録されている。';
+      if (ctx.history && ctx.history.length) { const h = ctx.history[ctx.history.length - 1]; body += 'また' + fmtYear(h.year) + 'の' + h.name + 'は、史実とは異なり「' + h.title + '」として教科書に載っている。'; }
       body += 'これらの改変は世代を超えて積み重なり、' + T + '年の' + ctx.mode.place + 'は' + desc + 'として知られている。なお、史実との違いについて質問すると先生は目をそらす。';
     } else {
       body += '一度も神託は下されなかった。歴史は静かにそのまま流れ、' + T + '年の' + ctx.mode.place + 'は' + desc + 'として知られている。時空省は「何もしないのも改変のうち」とコメントしている。';
@@ -378,6 +379,7 @@ ${eraBlock(e)}
 
 # ${ctx.centuries * 100}年間の神託と出来事の記録
 ${dropsBlock(ctx.drops)}
+${ctx.history && ctx.history.length ? '\n# 狂ってしまった史実の大事件\n' + ctx.history.map((h) => `- ${fmtYear(h.year)}「${h.name}」→「${h.title}」: ${h.text}`).join('\n') : ''}
 
 # 確定時点の文明パラメータ(0〜100)
 人口${p.population} / 技術${p.technology} / 秩序${p.order} / 歪み${p.distortion}
@@ -443,6 +445,126 @@ ${dropsBlock(ctx.drops)}
     };
   }
 
+  /* ================= 史実イベント衝突（歴史が単語とパラメータで狂う） ================= */
+  const TONE = {
+    war:      { base: { population: -10, technology: 3, order: -8, distortion: 3 }, add: [['fort', 1], ['ruins', 1]], sky: 'crimson', verb: '戦い' },
+    disaster: { base: { population: -12, technology: 0, order: -5, distortion: 2 }, add: [['ruins', 2]], remove: [['house', 1]], sky: 'storm', verb: '災厄' },
+    politics: { base: { population: 0, technology: 2, order: 9, distortion: 3 }, add: [['castle', 1], ['statue', 1]], sky: null, verb: '政変' },
+    culture:  { base: { population: 4, technology: 4, order: 3, distortion: 4 }, add: [['temple', 1], ['statue', 1]], sky: 'golden', verb: '出来事' },
+    tech:     { base: { population: 3, technology: 10, order: -2, distortion: 4 }, add: [['factory', 1], ['tower', 1]], sky: null, verb: '発明' },
+  };
+  // 単語の性質ごとの「狂い方」
+  const HIST_TWIST = {
+    commerce: ['{name}は、「{w}」が普及していたため、合戦ではなく株主総会での委任状争奪戦として決着した。', '{name}の勝敗は、「{w}」の売上ランキングで決まることになった。'],
+    tech:     ['{name}は、「{w}」による情報戦で始まる前から勝敗が決し、当事者たちは結果だけを通知で知った。', '{name}の現場には「{w}」が持ち込まれ、史実の何倍もの速さで事態が進んだ。'],
+    food:     ['{name}の当日、両陣営は「{w}」の配給をめぐって休戦し、なぜか大宴会で幕を閉じた。', '{name}は、「{w}」で体を鍛え上げた者たちによって、史実とはまるで違う力比べになった。'],
+    culture:  ['{name}は「{w}」をめぐる人気投票にすり替わり、勝者は熱狂的なファンを持つ側だった。', '{name}の主役たちは、「{w}」の作法にのっとって名乗りを上げるのに一日を費やした。'],
+    social:   ['{name}は、「{w}」の規定違反を理由に、{ruler}への強制監査として粛々と執行された。', '{name}は「{w}」の手続きが終わるまで延期され、書類の山だけが後世に残った。'],
+    conflict: ['{name}に「{w}」が投入され、史実の何倍もの規模の騒乱へと膨れ上がった。', '「{w}」を手にした者が{name}の主導権を握り、勝者と敗者が史実と入れ替わった。'],
+    nature:   ['{name}のさなか、「{w}」が現場を横切ったため、誰もが戦意を失い解散した。', '{name}は「{w}」の大移動と重なり、人々はそれどころではなくなった。'],
+    mystery:  ['{name}は、「{w}」の謎めいた力によって、起きたことすら記録から消えかけた。', '{name}の記録には、なぜか「{w}」という言葉だけが何度も書き込まれていた。'],
+  };
+  // パラメータの状態がもたらす色合い
+  function paramColor(p) {
+    if (p.technology >= 75) return '時代離れした技術のせいで、';
+    if (p.technology <= 20) return '技術が失われつつあったため、';
+    if (p.order >= 80) return '厳しすぎる統制のもとで、';
+    if (p.order <= 25) return '無法がはびこる中で、';
+    if (p.population >= 80) return 'あふれかえる群衆のせいで、';
+    if (p.population <= 20) return '人手が足りず、';
+    if (p.distortion >= 60) return '時空の歪みによって、';
+    return '';
+  }
+
+  function offlineHistory(ctx) {
+    const ev = ctx.event;
+    const T = TONE[ev.tone] || TONE.politics;
+    const words = ctx.drops.map((d) => d.word);
+    const p = ctx.params;
+    const color = paramColor(p);
+    const sub = { era: ctx.era, word: '' };
+    let text, title, cat = null;
+    if (words.length) {
+      // 直近の神託ほど事件に絡みやすい
+      const w = Math.random() < 0.7 ? words[words.length - 1] : words[(Math.random() * words.length) | 0];
+      cat = classify(w);
+      sub.word = w;
+      const list = HIST_TWIST[cat];
+      text = (color ? color : '') + fill(list[(Math.random() * list.length) | 0].replace(/\{name\}/g, '本来の' + ev.name), sub);
+      title = ev.name + '（' + w + '版）';
+    } else {
+      text = (color || '神託のない世界でも、') + ev.name + 'はほぼ史実どおりに起きた。ただし浮島の' + T.verb + 'は、記録とは少しだけ違う結末を迎えた。';
+      title = ev.name + '（ほぼ史実どおり）';
+    }
+    // 大幅変動：事件の性質＋単語の性質＋歪み
+    const delta = {};
+    const C = cat ? CATS[cat].base : null;
+    for (const k of WD.PARAMS) {
+      let v = T.base[k.key] + (C ? C[k.key] * 0.5 : 0) + (Math.random() - 0.5) * 6;
+      if (k.key === 'distortion') v = Math.max(0, v + words.length * 2);
+      delta[k.key] = Math.round(Math.max(-20, Math.min(20, v)));
+    }
+    const add = (T.add || []).map(([type, count]) => ({ type, count }));
+    if (cat) { const m = CATS[cat].maps[1].add || []; if (m[0]) add.push({ type: m[0][0], count: 1 }); }
+    return {
+      title, text, delta,
+      map: { add, remove: (T.remove || []).map(([type, count]) => ({ type, count })), sky: T.sky, sea: null, land: null, weather: ev.tone === 'disaster' ? 'ash' : null },
+    };
+  }
+
+  function historyPrompt(ctx) {
+    const p = ctx.params;
+    const e = ctx.era;
+    return `あなたは歴史改変シミュレーションゲーム『WORDROP』のゲームマスターです。
+箱庭の島で歴史が1年ずつ進む中、本来なら起きるはずの「史実の大事件」の年に到達しました。
+これまでにプレイヤーが投下した単語（神託）と現在の文明パラメータによって、この大事件が本来の史実からどう狂ったかを判定してください。
+
+# 舞台の時代
+${eraBlock(e)}
+
+# 割り込んできた史実の大事件
+- ${fmtDate(ctx.date)}「${ctx.event.name}」
+- 本来の史実: ${ctx.event.fact}
+
+# 現在の改変状態
+- 文明パラメータ(0〜100): 人口${p.population} / 技術${p.technology} / 秩序${p.order} / 歪み${p.distortion}
+- 投下済みの神託と起きた出来事:
+${dropsBlock(ctx.drops)}
+
+# ルール
+- 投下済みの単語が当たり前に存在する世界で、この事件がどう変質したかを、具体的かつユーモラスに描くこと（例:「コンプライアンス」が普及していたため、本能寺の変が武力討伐ではなく労働基準監督署による信長への強制監査になった）。
+- 単語が1つも無い場合は、パラメータの偏りによる小さなズレとして描くこと。
+- text は100文字以内。title は狂った後の事件名（25文字以内）。
+- 大事件なので delta は大きめに。population/technology/order は -20〜+20 の整数、distortion は -5〜+15 の整数。人口・技術・秩序のいずれかが0以下か100以上になると文明崩壊。
+- map の add/remove の type は次から選ぶ: ${typeList}。count は1〜2。sky は ${WD.SKIES.join('|')}、sea は ${WD.SEAS.join('|')}、land は ${WD.LANDS.join('|')}、weather は ${WD.WEATHERS.join('|')}、変化がなければ null。
+
+# 出力形式（このJSONのみを出力）
+{"title": "…", "text": "…", "delta": {"population": -8, "technology": 4, "order": -12, "distortion": 6},
+ "map": {"add": [{"type": "fort", "count": 1}], "remove": [], "sky": null, "sea": null, "land": null, "weather": null}}`;
+  }
+
+  function sanitizeHistory(raw, ctx) {
+    const fb = offlineHistory(ctx);
+    if (!raw || typeof raw !== 'object') return fb;
+    const pickEnum = (v, l) => (typeof v === 'string' && l.includes(v) ? v : null);
+    const items = (arr) => (Array.isArray(arr) ? arr : [])
+      .filter((a) => a && TYPES.includes(a.type)).slice(0, 3)
+      .map((a) => ({ type: a.type, count: clampInt(a.count || 1, 1, 2) }));
+    const d = raw.delta || {};
+    const m = raw.map || {};
+    return {
+      title: String(raw.title || fb.title).slice(0, 40),
+      text: String(raw.text || fb.text).slice(0, 160),
+      delta: {
+        population: clampInt(d.population, -20, 20),
+        technology: clampInt(d.technology, -20, 20),
+        order: clampInt(d.order, -20, 20),
+        distortion: clampInt(d.distortion, -5, 15),
+      },
+      map: { add: items(m.add), remove: items(m.remove), sky: pickEnum(m.sky, WD.SKIES), sea: pickEnum(m.sea, WD.SEAS), land: pickEnum(m.land, WD.LANDS), weather: pickEnum(m.weather, WD.WEATHERS) },
+    };
+  }
+
   function online(settings) { return !settings.offline && !!settings.apiKey; }
 
   WD.Oracle = {
@@ -466,6 +588,15 @@ ${dropsBlock(ctx.drops)}
       }
     },
     miniEvent,
+    async history(ctx, settings) {
+      if (!online(settings)) return { result: offlineHistory(ctx), source: 'offline' };
+      try {
+        const raw = await callGemini(settings, historyPrompt(ctx));
+        return { result: sanitizeHistory(raw, ctx), source: 'gemini' };
+      } catch (e) {
+        return { result: offlineHistory(ctx), source: 'offline', error: e.message || String(e) };
+      }
+    },
     async test(settings) {
       const raw = await callGemini(settings, '次のJSONをそのまま返してください: {"ok": true, "message": "WORDROP接続成功"}');
       return raw;

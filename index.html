@@ -64,6 +64,16 @@
           </div>
           <div class="absolute bottom-2 left-3 pointer-events-none font-pixel text-[8px] hud-shadow" id="hud-source"></div>
           <div id="hud-pause" class="hud-pause hidden">❚❚ PAUSE</div>
+          <div class="map-ctrl" aria-label="島の表示">
+            <button type="button" data-zoom="in" title="拡大（ホイール上）">＋</button>
+            <button type="button" data-zoom="out" title="縮小（ホイール下）">－</button>
+            <button type="button" data-zoom="reset" title="全体表示に戻す（ダブルクリック）">⟲</button>
+          </div>
+          <div id="hist-alert" class="hist-alert hidden">
+            <div class="ha-title">⚠️ 史実イベント割り込み発生！</div>
+            <div id="ha-name" class="ha-name"></div>
+            <div id="ha-sub" class="ha-sub"></div>
+          </div>
           <div id="map-news" class="map-news hidden"></div>
           <div id="era-banner" class="era-banner hidden"></div>
           <div id="tooltip" class="map-tooltip hidden"></div>
@@ -107,6 +117,7 @@
             <span id="clock-elapsed">経過 0年0ヶ月 / 100年</span>
             <span id="clock-next">次の激変：―</span>
           </div>
+          <div id="clock-hist" class="clock-hist">次の史実イベント：―</div>
         </div>
 
         <!-- この100年の神託（投下スロット） -->
@@ -134,6 +145,10 @@
             </div>
             <button id="btn-drop" type="submit" class="drop-btn">歴史に投下<small id="drop-left">★★★</small></button>
           </form>
+          <div id="oracle-lock" class="oracle-lock hidden">
+            <div id="lock-text" class="lock-text"></div>
+            <div class="lock-bar"><div id="lock-fill" class="lock-fill"></div></div>
+          </div>
           <button id="btn-next" type="button" class="next-btn hidden w-full">次の時代へ ▶</button>
           <div id="cards" class="cards"></div>
         </div>
@@ -319,6 +334,7 @@
 
   <script src="js/config.js"></script>
   <script src="js/eras.js"></script>
+  <script src="js/history.js"></script>
   <script src="js/sprites.js"></script>
   <script src="js/iso-map.js"></script>
   <script src="js/oracle.js"></script>
