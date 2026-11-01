@@ -6,9 +6,18 @@ WD.DEFAULT_MODEL = 'gemini-3.8-flash';
 /* リアルタイム進行 */
 WD.SECONDS_PER_MONTH = 5;            // 等倍：5秒＝1ヶ月（60秒＝1年）
 WD.SPEEDS = [0, 1, 2, 4];            // ⏸ / ×1 / ×2 / ×4
-WD.GOAL_YEARS = 15;                  // 15年生き延びればクリア
-WD.MAX_WORDS = 3;                    // 1プレイの投下上限
-WD.EVENT_OFFSETS = [1, 2, 3, 5, 8, 10]; // 単語投下から何年後に年次イベントが起きるか
+WD.CENTURY_YEARS = 100;              // 1チャプター＝100年。100年ごとに「確定」か「継続」を選ぶ
+WD.ORACLES_PER_CENTURY = 3;          // 100年につき投下できる単語（神託）の数
+WD.DAILY_MONTHS = [24, 36];          // 日常の小イベントの間隔（2〜3年おき）
+/* 1つの単語が3世代・約30年にわたって起こす年次イベント（投下からの年数） */
+WD.GENERATIONS = [
+  { name: '第1世代', label: '導入・混乱期', offsets: [0, 2, 5, 8] },
+  { name: '第2世代', label: '定着・変質期', offsets: [12, 16, 20] },
+  { name: '第3世代', label: '暴走・到達期', offsets: [25, 30] },
+];
+WD.EVENT_OFFSETS = WD.GENERATIONS.flatMap((g) => g.offsets);
+WD.generationOf = (offset) => WD.GENERATIONS.findIndex((g) => g.offsets.includes(offset));
+WD.SAVE_KEY = 'wordrop.save.v1';
 
 WD.PARAMS = [
   { key: 'population', name: '人口', color: '#5be06a', dark: '#1f6b2a' },

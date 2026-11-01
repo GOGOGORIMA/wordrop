@@ -115,7 +115,14 @@
       .replace(/\{hook3\}/g, e.hooks[2]);
   }
 
-  /* 単語投下 → +1/+2/+3/+5/+8/+10年後の年次タイムライン（オフライン） */
+  /* 世代ごとの汎用の一文（単語がその社会に根づいていく様子） */
+  const GEN_LINES = [
+    ['{w}の正体をめぐり、{who}の間で激論が交わされた。', '{ruler}は{w}を禁じるべきか迷い、結論を先送りにした。', '{place}の市に{w}を扱う露店が並び始めた。', '{w}を拒む古老と、飛びつく若者で{place}が二つに割れた。'],
+    ['{w}を当たり前に知る子どもたちが大人になった。', '{w}なしの暮らしを知らない世代が、{place}の要職を占め始めた。', '学び舎で{w}の作法が教えられるようになった。', '{w}の親から生まれた子が、親とは違う{w}の使い方を始めた。'],
+    ['{place}の街並みは{w}に合わせて造り替えられた。', '{w}はもはや信仰であり、制度であり、景色そのものだ。', '旅人は口をそろえる。「{place}は{w}でできている」と。'],
+  ];
+
+  /* 単語投下 → 3世代・9段階（+0〜+30年）の年次タイムライン（オフライン） */
   function offlineDrop(ctx) {
     const cat = classify(ctx.word);
     const C = CATS[cat];
@@ -125,41 +132,42 @@
       if (!pool[key] || !pool[key].length) pool[key] = arr.slice();
       return pool[key].splice((r() * pool[key].length) | 0, 1)[0];
     };
-    const frac = [0.12, 0.14, 0.16, 0.18, 0.2, 0.2];
+    const frac = [0.06, 0.08, 0.1, 0.1, 0.12, 0.12, 0.13, 0.14, 0.15];
     // 時代錯誤度：古い時代に現代語を落とすほど歪む
     const anachro = (3 - ctx.era.tier) * 3 + (ctx.era.year < 0 ? 2 : 0);
     const events = WD.EVENT_OFFSETS.map((off, i) => {
-      const phase = i < 2 ? 0 : i < 4 ? 1 : 2;
-      const tkey = ['t10', 't50', 't200'][phase];
-      const twist = ['early', 'mid', 'late'][phase];
+      const gen = WD.generationOf(off);
+      const tkey = ['t10', 't50', 't200'][gen];
+      const twist = ['early', 'mid', 'late'][gen];
       const delta = {};
       for (const p of WD.PARAMS) {
-        let v = C.base[p.key] * frac[i] + (r() - 0.5) * 6;
+        let v = C.base[p.key] * frac[i] + (r() - 0.5) * 5;
         if (p.key === 'distortion') v = Math.max(0, v + anachro * frac[i]);
         delta[p.key] = Math.round(v);
       }
-      const m = C.maps[phase];
-      const first = i % 2 === 0;
+      const m = C.maps[gen];
+      const build = i % 2 === 0;
       const map = {
-        add: first ? (m.add || []).map(([type, count]) => ({ type, count: Math.max(1, count - (r() < 0.5 ? 1 : 0)) })) : [],
-        remove: first ? (m.remove || []).map(([type, count]) => ({ type, count })) : [],
-        sky: first ? null : m.sky || null, sea: first ? null : m.sea || null, land: first ? null : m.land || null, weather: first ? null : m.weather || null,
+        add: build ? (m.add || []).map(([type, count]) => ({ type, count: Math.max(1, count - (r() < 0.5 ? 1 : 0)) })) : [],
+        remove: build ? (m.remove || []).map(([type, count]) => ({ type, count })) : [],
+        sky: build ? null : m.sky || null, sea: build ? null : m.sea || null, land: build ? null : m.land || null, weather: build ? null : m.weather || null,
       };
-      // 時代のシンボル建築が単語の影響で増える
-      if (i === 3 && ctx.era.symbols.length) map.add.push({ type: ctx.era.symbols[0][0], count: 1 });
-      const text = fill(take(tkey, C[tkey]), ctx) + (first ? '' : fill(take(twist, TWISTS[twist]), ctx));
+      // 第2世代の終わりには時代のシンボル建築が単語の影響で増える
+      if (i === 6 && ctx.era.symbols.length) map.add.push({ type: ctx.era.symbols[0][0], count: 1 });
+      const lead = i % 3 === 1 ? take('gen' + gen, GEN_LINES[gen]) : take(tkey, C[tkey]);
+      const text = fill(lead, ctx) + (i % 2 === 1 ? fill(take(twist, TWISTS[twist]), ctx) : '');
       return { offset: off, text, delta, map };
     });
     return { title: fill(C.titles[(r() * C.titles.length) | 0], ctx), category: cat, events };
   }
 
-  /* 3〜4ヶ月ごとの日常の小イベント（常にローカル生成） */
+  /* 2〜3年おきの日常の小イベント（常にローカル生成。季節・時代・パラメータに応じる） */
   const MINI = {
     spring: [
       { t: '{place}で種まきが始まり、{who}は畑に出ずっぱりだ。', d: { population: 1 } },
       { t: '{who}の間で春祭りが開かれ、夜遅くまで歌声が響いた。', d: { order: 1 } },
       { t: '{ruler}が春の布告を出し、街道の掃除が命じられた。', d: { order: 2, population: -1 } },
-      { t: '春の長雨で道がぬかるみ、市が一日休みになった。', d: { population: -1 } },
+      { t: '春の長雨で道がぬかるみ、市がしばらく休みになった。', d: { population: -1 } },
     ],
     summer: [
       { t: '日照りが続き、{who}が井戸の順番で口論になった。', d: { order: -2 } },
@@ -177,20 +185,33 @@
       { t: '厳しい寒さで{who}は家にこもりがちだ。', d: { population: -1 } },
       { t: '冬の夜長に{who}が新しい遊びを発明した。', d: { technology: 1 } },
       { t: '流行り病が{place}をかすめ、皆が肝を冷やした。', d: { population: -2 } },
-      { t: '{ruler}が年の瀬の施しを行い、民は胸をなでおろした。', d: { order: 2 } },
+      { t: '{ruler}の後継ぎをめぐり、年の瀬の宮中がざわついた。', d: { order: -1 } },
     ],
     word: [
       { t: '「{w}」の話題で{place}の井戸端が持ちきりだ。', d: { distortion: 1 } },
       { t: '{who}の子どもたちが「{w}ごっこ」で遊んでいる。', d: { distortion: 1, order: -1 } },
-      { t: '{ruler}がこっそり{w}を試したという噂が立った。', d: { distortion: 2 } },
+      { t: '{ruler}の代替わりの儀式に、なぜか{w}が欠かせなくなった。', d: { order: 1, distortion: 1 } },
+      { t: '{w}を知らない老人が、昔話として「{w}以前」を語った。', d: { distortion: 1 } },
     ],
+    // 現在のパラメータに応じた出来事
+    popHi: [{ t: '{place}の長屋がすし詰めになり、新しい町が造成された。', d: { population: -1, technology: 1 } }],
+    popLo: [{ t: '空き家が目立つ{place}に、遠方から移住者がやってきた。', d: { population: 2 } }],
+    techHi: [{ t: '{place}の職人が、時代を何百年も先取りした機械を組み上げた。', d: { technology: 1, distortion: 1 } }],
+    techLo: [{ t: '古い技を知る最後の職人が亡くなり、弟子たちが途方に暮れた。', d: { technology: -1 } }],
+    ordHi: [{ t: '{ruler}の役人が戸口ごとに帳面を付けて回った。', d: { order: 1, population: -1 } }],
+    ordLo: [{ t: '{place}の外れで小さな一揆が起き、すぐに鎮まった。', d: { order: 1, population: -1 } }],
   };
   function miniEvent(ctx) {
-    const useWord = ctx.word && Math.random() < 0.4;
-    const list = useWord ? MINI.word : MINI[ctx.season];
+    const p = ctx.params || {};
+    const pools = [MINI[ctx.season], MINI[ctx.season]];
+    if (ctx.word) pools.push(MINI.word);
+    if (p.population >= 70) pools.push(MINI.popHi); else if (p.population <= 30) pools.push(MINI.popLo);
+    if (p.technology >= 70) pools.push(MINI.techHi); else if (p.technology <= 30) pools.push(MINI.techLo);
+    if (p.order >= 70) pools.push(MINI.ordHi); else if (p.order <= 30) pools.push(MINI.ordLo);
+    const list = pools[(Math.random() * pools.length) | 0];
     const ev = list[(Math.random() * list.length) | 0];
     const delta = {};
-    for (const p of WD.PARAMS) delta[p.key] = ev.d[p.key] || 0;
+    for (const k of WD.PARAMS) delta[k.key] = ev.d[k.key] || 0;
     return { text: fill(ev.t, ctx), delta };
   }
 
@@ -215,24 +236,26 @@
     const e = ctx.era;
     const desc = describe(ctx.params);
     const words = ctx.drops.map((d) => d.word);
-    const span = fmtYear(ctx.start.year) + 'から' + fmtDate(ctx.end) + 'までの' + ctx.yearsLived + '年間';
-    let body;
+    const T = ctx.targetYear;
+    const span = fmtYear(ctx.start.year) + 'から' + fmtDate(ctx.end) + 'までの' + ctx.centuries + '世紀';
+    let body = e.yearLabel + '、' + e.name + 'の' + e.place + '。' + span + 'にわたり、';
     if (ctx.drops.length) {
-      body = e.yearLabel + '、' + e.name + 'の' + e.place + '。' + span + 'に、この地には「' + words.join('」「') + '」' + (words.length > 1 ? 'が次々と' : 'が') + 'もたらされた。' +
-        ctx.drops.map((d) => {
-          const last = d.fired[d.fired.length - 1];
-          return fmtDate(d.date) + 'の「' + d.word + '」は' + d.title + 'を引き起こし' + (last ? '、' + last.text.replace(/。$/, '') : '') + '。';
-        }).join('') +
-        'この15年間の小さな改変は、その後の数百年で雪だるま式に膨らみ、2026年の' + ctx.mode.place + 'は' + desc + 'として知られている。なお、史実との違いについて質問すると先生は目をそらす。';
+      const byC = [];
+      ctx.drops.forEach((d) => { (byC[d.century] = byC[d.century] || []).push(d); });
+      body += byC.map((list, c) => list ? '第' + (c + 1) + '世紀には' + list.map((d) => '「' + d.word + '」が' + d.title + 'を引き起こし').join('、') + 'た' : '').filter(Boolean).join('。') + '。';
+      const last = ctx.drops[ctx.drops.length - 1];
+      const tail = last.fired[last.fired.length - 1];
+      if (tail) body += '最後の神託がもたらした光景は「' + tail.text.replace(/。$/, '') + '」と記録されている。';
+      body += 'これらの改変は世代を超えて積み重なり、' + T + '年の' + ctx.mode.place + 'は' + desc + 'として知られている。なお、史実との違いについて質問すると先生は目をそらす。';
     } else {
-      body = e.yearLabel + '、' + e.name + 'の' + e.place + 'では、' + span + '、何も投下されなかった。歴史は静かにそのまま流れ、2026年の' + ctx.mode.place + 'は' + desc + 'として知られている。時空省は「何もしないのも改変のうち」とコメントしている。';
+      body += '一度も神託は下されなかった。歴史は静かにそのまま流れ、' + T + '年の' + ctx.mode.place + 'は' + desc + 'として知られている。時空省は「何もしないのも改変のうち」とコメントしている。';
     }
     return {
-      title: ctx.mode.textbook + ' 2026年版',
-      chapter: '第' + (e.tier + 3) + '章　' + e.name + 'の15年' + (words.length ? '――「' + words.join('」「') + '」の衝撃' : ''),
+      title: ctx.mode.textbook + ' ' + T + '年版',
+      chapter: '第' + (e.tier + 3) + '章　' + e.name + 'からの' + ctx.centuries * 100 + '年' + (words.length ? '――「' + words.slice(0, 3).join('」「') + '」' + (words.length > 3 ? 'ほか' : '') + 'の衝撃' : ''),
       body,
-      keywords: ctx.drops.map((d) => d.title).concat([desc]),
-      sns: '【WORDROP】' + e.name + '（' + fmtYear(ctx.start.year) + '〜）に' + (words.length ? '「' + words.join('」「') + '」を投下したら' : '何も投下しなかったら') + '、2026年は「' + desc + '」になった…！ #WORDROP #歴史改変',
+      keywords: ctx.drops.map((d) => d.title).slice(-4).concat([desc]),
+      sns: '【WORDROP】' + e.name + '（' + fmtYear(ctx.start.year) + '〜）から' + ctx.centuries * 100 + '年、' + (words.length ? '「' + words.join('」「') + '」を投下したら' : '何も投下しなかったら') + '、' + T + '年は「' + desc + '」になった…！ #WORDROP #歴史改変',
     };
   }
 
@@ -286,52 +309,58 @@
   }
 
   function dropsBlock(drops) {
-    if (!drops.length) return '- なし（最初の改変）';
-    return drops.map((d) => `- ${fmtDate(d.date)}に「${d.word}」→「${d.title}」。実際に起きたこと: ${d.fired.length ? d.fired.map((f) => fmtDate(f) + ' ' + f.text).join(' / ') : 'まだ何も起きていない'}`).join('\n');
+    if (!drops.length) return '- なし（最初の神託）';
+    return drops.map((d) => {
+      const fired = d.fired.slice(-4);
+      return `- 第${d.century + 1}世紀 ${fmtDate(d.date)}に「${d.word}」→「${d.title}」。実際に起きたこと${d.fired.length > 4 ? '（最近の4件）' : ''}: ${fired.length ? fired.map((f) => fmtDate(f) + ' ' + f.text).join(' / ') : 'まだ何も起きていない'}`;
+    }).join('\n');
   }
 
   function dropPrompt(ctx) {
     const p = ctx.params;
     const e = ctx.era;
-    const years = WD.EVENT_OFFSETS.map((o) => `+${o}年後=${fmtYear(ctx.date.year + o)}${ctx.date.month}月`).join(', ');
+    const years = WD.GENERATIONS.map((g) => `${g.name}［${g.label}］: ` + g.offsets.map((o) => `+${o}年=${fmtYear(ctx.date.year + o)}${ctx.date.month}月`).join(', ')).join('\n  ');
     const pending = ctx.pending.length
-      ? '\n- 次の予定はこの投下で上書きされ、起きなかったことになる: ' + ctx.pending.map((x) => `${fmtDate(x)}「${x.word}」${x.text}`).join(' / ')
+      ? '\n- 並行して進行中の予言（これから起きる予定。矛盾せず絡み合うように）: ' + ctx.pending.slice(0, 8).map((x) => `${fmtDate(x)}「${x.word}」${x.text}`).join(' / ')
       : '';
     return `あなたは歴史改変シミュレーションゲーム『WORDROP』のゲームマスターです。
-空に浮かぶ箱庭の島で、ある時代がリアルタイムに1年ずつ進行しています。プレイヤーは今この瞬間に「単語」を1つ投下しました。
-その単語（概念・モノ）が突然この時代に存在したら、これから10年間に毎年どのような変化が段階的に起きるかを、年次タイムラインとして生成してください。
+空に浮かぶ箱庭の島で、ある時代が1年ずつリアルタイムに進行する大河シミュレーションです。プレイヤーは今この瞬間に「神託」として単語を1つ投下しました。
+その単語（概念・モノ）が突然この時代に存在したら、これから約30年・3世代にわたって歴史がどう段階的に変わっていくかを、年次タイムラインとして生成してください。
 
 # 舞台の時代（ゲーム開始時にプレイヤーが選んだ時代。途中で変わらない）
 ${eraBlock(e)}
 
 # 現在の状況
-- 現在: ${fmtDate(ctx.date)}（開始から${Math.floor(ctx.date.elapsed / 12)}年${ctx.date.elapsed % 12}ヶ月経過。${WD.GOAL_YEARS}年生き延びればクリア）
+- 現在: ${fmtDate(ctx.date)}（開始から${Math.floor(ctx.date.elapsed / 12)}年経過、第${ctx.century + 1}世紀）
 - 文明パラメータ(0〜100): 人口${p.population} / 技術${p.technology} / 秩序${p.order} / 歪み${p.distortion}
-- これまでの投下と、すでに起きた出来事（この改変状態を引き継ぐこと）:
+- これまでの神託と、すでに起きた出来事（この改変状態を引き継ぐこと）:
 ${dropsBlock(ctx.drops)}${pending}
 - 今回投下された単語: 「${ctx.word}」
-- 生成する年: ${years}
+- 生成する年（9件）:
+  ${years}
 
 # 描写のルール
-- 必ず「この時代固有の要素」（${e.hooks.join('、')}）や実在の人物・出来事・地名（${e.ruler}、${e.place}など）と単語を化学反応させ、この時代でしか起きないバタフライ・エフェクトを描くこと。
-- +1年後のささやかな変化から始まり、+10年後には社会の形が変わるほどに、前の出来事を受けて連鎖的に拡大していくこと。過去の投下の影響とも絡めること。
+- 第1世代［導入・混乱期］: 単語が持ち込まれた直後の驚き・混乱・反発。+0年は投下されたその年の出来事。
+- 第2世代［定着・変質期］: その単語を当たり前のものとして育った新世代が大人になり、使い方や意味を変えていく社会変化。
+- 第3世代［暴走・到達期］: 文明の構造や建築様式・街並みまでが完全に変容した到達点。
+- 必ず「この時代固有の要素」（${e.hooks.join('、')}）や実在の人物・出来事・地名（${e.ruler}、${e.place}など）と単語を化学反応させ、この時代でしか起きないバタフライ・エフェクトを描くこと。年月が進めば権力者も代替わりしてよい。
 - text は各70文字以内の日本語。ユーモラスに、しかし史実の固有名詞はもっともらしく。
 
 # 数値・描画のルール
 - 人口・技術・秩序のいずれかが0以下または100以上になると文明崩壊（ゲームオーバー）。単語と時代の性質に忠実に増減させること。
-- delta は各年の増減値。population/technology/order は -15〜+15 の整数、distortion（時代錯誤による時空の歪み）は -5〜+15 の整数。
-- map は箱庭の島の見た目の変化。add/remove の type は次から選ぶ: ${typeList}。count は1〜2。
+- delta は各年の増減値。population/technology/order は -12〜+12 の整数、distortion（時代錯誤による時空の歪み）は -5〜+12 の整数。
+- map は箱庭の島の見た目の変化。add/remove の type は次から選ぶ: ${typeList}。count は1〜2。第3世代では建築様式の変化を積極的に反映すること。
 - sky は ${WD.SKIES.join('|')}、sea は ${WD.SEAS.join('|')}、land は ${WD.LANDS.join('|')}、weather は ${WD.WEATHERS.join('|')} から選ぶ。変化がなければ null。
 - title はこの改変を象徴する歴史用語風の見出し（20文字以内）。
 
-# 出力形式（このJSONのみを出力。events は offset 1,2,3,5,8,10 の6件）
+# 出力形式（このJSONのみを出力。events は offset ${WD.EVENT_OFFSETS.join(',')} の${WD.EVENT_OFFSETS.length}件）
 {
   "title": "プロテイン維新",
   "events": [
-    {"offset": 1, "text": "…", "delta": {"population": 2, "technology": 1, "order": -1, "distortion": 3},
+    {"offset": 0, "text": "…", "delta": {"population": 2, "technology": 1, "order": -1, "distortion": 3},
      "map": {"add": [{"type": "market", "count": 1}], "remove": [], "sky": null, "sea": null, "land": null, "weather": null}},
     {"offset": 2, "text": "…", "delta": {…}, "map": {…}},
-    {"offset": 3, …}, {"offset": 5, …}, {"offset": 8, …}, {"offset": 10, …}
+    …（offset 5, 8, 12, 16, 20, 25, 30 も同様）
   ]
 }`;
   }
@@ -339,24 +368,25 @@ ${dropsBlock(ctx.drops)}${pending}
   function finalePrompt(ctx) {
     const p = ctx.params;
     const e = ctx.era;
+    const T = ctx.targetYear;
     return `あなたは歴史改変シミュレーションゲーム『WORDROP』のゲームマスターです。
-プレイヤーは${e.name}（${e.sub}、${e.place}）を舞台に、${fmtYear(ctx.start.year)}から${fmtDate(ctx.end)}までの${ctx.yearsLived}年間、文明を崩壊させずに生き延びました。
-この15年間の改変が引き金となって、その後の歴史がどう転がり、2026年の世界がどうなったかを、2026年の中学・高校の歴史教科書の1ページとして書いてください。
+プレイヤーは${e.name}（${e.sub}、${e.place}）を舞台に、${fmtYear(ctx.start.year)}から${fmtDate(ctx.end)}までの${ctx.centuries}世紀（${ctx.centuries * 100}年）にわたって歴史に神託（単語）を投下し、文明を崩壊させずに歴史を確定させました。
+この改変が世代を超えて積み重なった結果、${T}年の世界がどうなったかを、${T}年の中学・高校の歴史教科書の1ページとして書いてください。
 
 # 舞台の時代
 ${eraBlock(e)}
 
-# 15年間の改変の記録
+# ${ctx.centuries * 100}年間の神託と出来事の記録
 ${dropsBlock(ctx.drops)}
 
-# 15年後の文明パラメータ(0〜100)
+# 確定時点の文明パラメータ(0〜100)
 人口${p.population} / 技術${p.technology} / 秩序${p.order} / 歪み${p.distortion}
 
 # 出力形式（このJSONのみを出力）
 {
-  "title": "教科書名（例: ${ctx.mode.textbook} 2026年版）",
+  "title": "教科書名（例: ${ctx.mode.textbook} ${T}年版）",
   "chapter": "章題（30文字以内）",
-  "body": "教科書本文。真面目な教科書の文体で、15年間の改変からその後の数百年の連鎖、2026年の姿までを260文字程度で。最後にくすっと笑える一文を。",
+  "body": "教科書本文。真面目な教科書の文体で、世紀ごとの改変の連鎖と${T}年の姿までを280文字程度で。最後にくすっと笑える一文を。",
   "keywords": ["重要語句を3〜5個"],
   "sns": "SNS投稿用の文章（120文字以内、時代名と投下した単語を含め、#WORDROP #歴史改変 のハッシュタグ付き）"
 }`;
@@ -383,10 +413,10 @@ ${dropsBlock(ctx.drops)}
           offset: off,
           text: String(s.text || fb.text).slice(0, 120),
           delta: {
-            population: clampInt(d.population, -15, 15),
-            technology: clampInt(d.technology, -15, 15),
-            order: clampInt(d.order, -15, 15),
-            distortion: clampInt(d.distortion, -5, 15),
+            population: clampInt(d.population, -12, 12),
+            technology: clampInt(d.technology, -12, 12),
+            order: clampInt(d.order, -12, 12),
+            distortion: clampInt(d.distortion, -5, 12),
           },
           map: {
             add: items(m.add),

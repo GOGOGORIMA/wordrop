@@ -28,6 +28,7 @@
       <div id="title-menu" class="hidden mt-8 w-full max-w-sm">
         <div class="menu-frame p-4 sm:p-5">
           <p class="font-pixel text-[10px] text-[#ffd23f] mb-3">SELECT MODE</p>
+          <button class="menu-item hidden" id="menu-continue" data-action="continue"><span class="cursor">▶</span>続きから再開<small id="continue-note"></small></button>
           <button class="menu-item" data-mode="chaos"><span class="cursor">▶</span>全歴史モード<small>日本史・世界史の全50時代から3つを抽選して1つを選ぶ</small></button>
           <button class="menu-item" data-mode="japan"><span class="cursor">▶</span>日本史モード<small>日本史20時代だけから抽選</small></button>
           <button class="menu-item" data-mode="world"><span class="cursor">▶</span>世界史モード<small>世界史30時代だけから抽選</small></button>
@@ -92,22 +93,25 @@
               <span id="clock-month" class="clock-month">-月</span>
               <span id="clock-season" class="clock-season"></span>
             </div>
-            <div class="speed-btns" role="group" aria-label="時間の速さ">
-              <button class="spd" data-speed="0" title="一時停止（Space）">⏸ PAUSE</button>
-              <button class="spd" data-speed="1" title="標準：1分＝1年 / 5秒＝1ヶ月">▶ ×1</button>
-              <button class="spd" data-speed="2" title="2倍速：30秒＝1年">▶▶ ×2</button>
-              <button class="spd" data-speed="4" title="4倍速：15秒＝1年">▶▶▶ ×4</button>
-            </div>
+            <span id="clock-century" class="clock-century">第1世紀</span>
           </div>
+          <div class="speed-btns" role="group" aria-label="時間の速さ">
+            <button class="spd" data-speed="0" title="一時停止（Space）">⏸ 一時停止</button>
+            <button class="spd" data-speed="1" title="標準：1分＝1年 / 5秒＝1ヶ月">▶ ×1</button>
+            <button class="spd" data-speed="2" title="2倍速：30秒＝1年">▶▶ ×2<span class="spd-note"> (30秒/年)</span></button>
+            <button class="spd" data-speed="4" title="4倍速：15秒＝1年">▶▶▶ ×4<span class="spd-note"> (15秒/年)</span></button>
+          </div>
+          <button id="btn-skip" class="skip-btn" type="button" title="次の歴史イベントが起きる年月まで時間を飛ばす（S）">⏭<span class="skip-long"> 次の歴史イベント年までスキップ</span><span class="skip-short"> 次へ</span></button>
           <div class="year-gauge" title="今年の進み具合"><div id="year-gauge-fill" class="year-gauge-fill"></div></div>
           <div class="clock-sub">
-            <span id="clock-elapsed">経過 0年0ヶ月 / 15年</span>
+            <span id="clock-elapsed">経過 0年0ヶ月 / 100年</span>
             <span id="clock-next">次の激変：―</span>
           </div>
         </div>
 
-        <!-- 投下スロット（最大3単語） -->
-        <nav id="steps" class="steps" aria-label="投下した単語"></nav>
+        <!-- この100年の神託（投下スロット） -->
+        <div class="oracle-head"><span>この100年の神託</span><span>残り神託：<b id="oracle-stars" class="oracle-stars">★★★</b></span></div>
+        <nav id="steps" class="steps" aria-label="この100年に投下した単語"></nav>
 
         <!-- パラメータ -->
         <div class="slate params-slate">
@@ -117,7 +121,7 @@
 
         <!-- 激変ログ -->
         <div class="slate log-slate flex-1 min-h-0 flex flex-col">
-          <div class="slate-title flex justify-between"><span>歴史の激変ログ</span><span class="text-[#8a8070]">投下から +1〜+10年後の年次イベント</span></div>
+          <div class="slate-title flex justify-between"><span>歴史の激変ログ</span><span class="text-[#8a8070]">神託から3世代・約30年の年次イベント</span></div>
           <div id="log" class="log flex-1 overflow-y-auto pr-1"></div>
         </div>
 
@@ -128,7 +132,7 @@
               <input id="word-input" type="text" maxlength="15" placeholder="単語を入力（15文字以内）" class="word-input w-full">
               <span id="char-count" class="absolute right-2 bottom-1 font-pixel text-[7px] text-[#8a8070]">0/15</span>
             </div>
-            <button id="btn-drop" type="submit" class="drop-btn">歴史に投下<small id="drop-left">残り3</small></button>
+            <button id="btn-drop" type="submit" class="drop-btn">歴史に投下<small id="drop-left">★★★</small></button>
           </form>
           <button id="btn-next" type="button" class="next-btn hidden w-full">次の時代へ ▶</button>
           <div id="cards" class="cards"></div>
@@ -147,8 +151,42 @@
       </div>
       <div id="draft-cards" class="draft-cards mt-4"></div>
       <div class="flex flex-wrap items-center justify-between gap-3 mt-4">
-        <p class="font-dot text-[11px] text-[#9a94b8]">キー操作：1〜3で選択 / Rで引き直し。選んだ時代の開始年から15年間、時計は止まらずに進みます。</p>
+        <p class="font-dot text-[11px] text-[#9a94b8]">キー操作：1〜3で選択 / Rで引き直し。選んだ時代の開始年から、100年ごとの区切りまで時計は進み続けます。</p>
         <button id="btn-reroll" class="metal-btn text-xs px-4 py-2" type="button">🎲 別の時代を引き直す（残り1回）</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 百年史の到達点（世紀末マイルストーン） ================= -->
+  <div id="milestone-modal" class="modal hidden">
+    <div class="modal-box milestone-box w-full max-w-3xl">
+      <div class="text-center">
+        <div id="ms-tag" class="font-pixel text-[10px] text-[#9fe8ff]">CENTURY 1 COMPLETE</div>
+        <h2 id="ms-title" class="font-dot text-xl sm:text-2xl text-[#ffd23f] mt-2 hud-shadow">百年史の到達点</h2>
+        <p id="ms-sub" class="font-dot text-xs sm:text-sm text-[#d8d0f0] mt-1"></p>
+      </div>
+      <div class="ms-body mt-4">
+        <figure class="ms-figure">
+          <img id="ms-image" alt="百年後の浮島">
+          <figcaption id="ms-caption"></figcaption>
+        </figure>
+        <div class="ms-info">
+          <div class="ms-h">この100年の神託</div>
+          <table class="ms-table"><tbody id="ms-words"></tbody></table>
+          <div class="ms-h mt-3">文明の変化（100年前 → いま）</div>
+          <div id="ms-params" class="ms-params"></div>
+          <p id="ms-summary" class="ms-summary"></p>
+        </div>
+      </div>
+      <div class="ms-choices mt-5">
+        <button id="btn-ms-finish" class="ms-choice finish" type="button">
+          <b>ここで歴史を確定して完了する</b>
+          <small>改変された歴史教科書カード＆SNSシェアへ進みます</small>
+        </button>
+        <button id="btn-ms-continue" class="ms-choice continue" type="button">
+          <b id="ms-continue-label">101年目以降もこのまま継続する（次の100年へ）</b>
+          <small>浮島・パラメータ・歴史をすべて引き継ぎ、神託が★★★に回復します</small>
+        </button>
       </div>
     </div>
   </div>

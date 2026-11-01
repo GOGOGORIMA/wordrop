@@ -95,6 +95,18 @@
   };
   function landPalette(key) { return Object.assign({}, BASE_LAND, LAND[key] || {}); }
 
+  function bytesToB64(bytes) {
+    let bin = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return btoa(bin);
+  }
+  function b64ToBytes(b64) {
+    const bin = atob(b64);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
   /* ================================================================ */
   class IsoWorld {
     constructor(canvas, opts) {
@@ -508,7 +520,7 @@
         sprite: WD.Sprites.get(type, variant, this.course),
         fall: opts.instant ? 0 : -(240 + (opts.delay || 0) * 70 + this.rnd() * 40),
         vy: 0, alpha: 1, removing: false, sink: 0,
-        auto: !!opts.auto, symbol: !!opts.symbol, label: opts.label || '', emitT: this.rnd(),
+        auto: !!opts.auto, symbol: !!opts.symbol, label: opts.label || '', emitT: this.rnd(), course: this.course,
       };
       this.buildings.push(b);
       return b;
@@ -1104,6 +1116,42 @@
 
     snapshot() {
       return this.canvas.toDataURL('image/png');
+    }
+
+    /* ---------- オートセーブ用 ---------- */
+    serialize() {
+      return {
+        seed: this.seed,
+        course: this.course,
+        env: Object.assign({}, this.env),
+        h: bytesToB64(new Uint8Array(this.h.buffer)),
+        type: bytesToB64(this.type),
+        buildings: this.buildings.filter((b) => !b.removing).map((b) => ({
+          type: b.type, x: b.x, y: b.y, h: b.h, r: b.r, variant: b.variant, auto: b.auto, symbol: b.symbol, label: b.label, course: b.course,
+        })),
+      };
+    }
+
+    /* 保存データから島を復元（地形の整地・建物・環境をそのまま戻す） */
+    static restore(canvas, opts, data) {
+      const w = new IsoWorld(canvas, Object.assign({}, opts, { seed: data.seed, course: data.course }));
+      w.h.set(new Int8Array(b64ToBytes(data.h).buffer));
+      w.type.set(b64ToBytes(data.type));
+      w.env = Object.assign({}, w.env, data.env);
+      w.refreshLists();
+      for (const d of data.buildings) {
+        if (!WD.BUILDINGS[d.type]) continue;
+        for (let oy = -d.r; oy <= d.r; oy++) for (let ox = -d.r; ox <= d.r; ox++) {
+          const j = w.idx(d.x + ox, d.y + oy);
+          if (j >= 0) w.occ[j] = 1;
+        }
+        w.buildings.push(Object.assign({}, d, {
+          sprite: WD.Sprites.get(d.type, d.variant, d.course || w.course),
+          fall: 0, vy: 0, alpha: 1, removing: false, sink: 0, emitT: w.rnd(),
+        }));
+      }
+      w.dirty = true;
+      return w;
     }
   }
 

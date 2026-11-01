@@ -505,3 +505,74 @@ body { font-family: 'DotGothic16', sans-serif; -webkit-font-smoothing: none; }
   .card .num, .card .seal { display: none; }
   .panel > .slate { margin-top: 4px; }
 }
+
+/* ---------- 大河モード（100年サイクル） ---------- */
+.clock-century { font-size: 11px; color: #1a1a22; background: #9fe8ff; padding: 1px 7px; border: 2px solid #000; white-space: nowrap; }
+.clock-slate .speed-btns { margin-top: 6px; }
+.clock-slate .speed-btns .spd { flex: 1 1 0; }
+.spd-note { font-size: 9px; opacity: 0.8; }
+.skip-btn {
+  width: 100%; margin-top: 4px; padding: 3px 6px; cursor: pointer;
+  font-family: 'DotGothic16', sans-serif; font-size: 11px; color: #ffe9a8;
+  background: linear-gradient(#3a2a5a, #241a3a); border: 2px solid #0e0e14; box-shadow: inset 1px 1px 0 rgba(255,255,255,0.15);
+}
+.skip-btn:hover { color: #fff; filter: brightness(1.2); }
+.skip-btn:active { transform: translateY(1px); }
+.oracle-head { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 11px; color: #d8d0bc; text-shadow: 1px 1px 0 #000; }
+.oracle-stars { color: var(--gold); font-size: 14px; letter-spacing: 2px; font-weight: normal; }
+.panel .steps { margin-top: 3px; }
+.log-plan .plan-gen { font-size: 10px; color: #9fe8ff; margin: 0 2px 0 6px; }
+.log-plan .plan-gen:first-child { margin-left: 0; }
+
+.milestone-box { background: linear-gradient(#1c1830, #100d1e); border: 4px solid var(--gold); box-shadow: 0 0 0 4px #5a3a0a, 8px 8px 0 4px #000; }
+.ms-body { display: flex; gap: 16px; align-items: flex-start; }
+@media (max-width: 640px) { .ms-body { flex-direction: column; } }
+.ms-figure { flex: none; width: 44%; }
+@media (max-width: 640px) { .ms-figure { width: 100%; } }
+.ms-figure img { width: 100%; border: 3px solid #000; image-rendering: pixelated; background: #000; }
+.ms-figure figcaption { font-size: 11px; color: #b8b0d0; margin-top: 4px; }
+.ms-info { flex: 1; min-width: 0; }
+.ms-h { font-size: 12px; color: var(--gold); border-bottom: 1px dashed #5a5070; margin-bottom: 4px; }
+.ms-table { width: 100%; font-size: 12px; border-collapse: collapse; }
+.ms-table td { border: 1px solid #3a3450; padding: 4px 6px; vertical-align: top; }
+.ms-table td:first-child { white-space: nowrap; width: 1%; color: #ffb0f0; }
+.ms-last { color: #b8b0d0; font-size: 11px; }
+.ms-params { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; }
+.ms-params i { font-style: normal; }
+.ms-params em { font-style: normal; font-size: 11px; }
+.ms-params em.up { color: #7aff8a; } .ms-params em.down { color: #ff7a6a; }
+.ms-summary { font-size: 13px; line-height: 1.7; margin-top: 8px; color: #f2ecd8; }
+.ms-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 640px) { .ms-choices { grid-template-columns: 1fr; } }
+.ms-choice {
+  display: flex; flex-direction: column; gap: 4px; text-align: left; cursor: pointer; padding: 12px 14px;
+  font-family: 'DotGothic16', sans-serif; color: #fff; border: 3px solid #000; box-shadow: 4px 4px 0 #000;
+}
+.ms-choice b { font-size: 15px; font-weight: normal; }
+.ms-choice small { font-size: 11px; opacity: 0.85; }
+.ms-choice.finish { background: linear-gradient(#5a4a8a, #2e2450); }
+.ms-choice.continue { background: linear-gradient(#e8503a, #a0201a); animation: glow 1.4s ease-in-out infinite; }
+.ms-choice:hover { transform: translateY(-2px); }
+.ms-choice:active { transform: translate(3px, 3px); box-shadow: 1px 1px 0 #000; }
+
+@media (max-width: 760px), (max-width: 1024px) and (orientation: portrait) {
+  .spd-note { display: none; }
+  .clock-century { font-size: 9px; padding: 0 4px; border-width: 1px; }
+  .clock-slate .speed-btns { margin-top: 3px; }
+  .skip-btn { font-size: 9.5px; padding: 1px 4px; margin-top: 3px; }
+  .oracle-head { margin-top: 3px; font-size: 10px; }
+  .oracle-stars { font-size: 11px; }
+}
+.skip-short { display: none; }
+@media (max-width: 760px), (max-width: 1024px) and (orientation: portrait) {
+  .clock-slate { display: grid; grid-template-columns: 1fr auto; column-gap: 4px; }
+  .clock-slate .clock-row, .clock-slate .year-gauge, .clock-slate .clock-sub { grid-column: 1 / -1; }
+  .clock-slate .speed-btns { grid-column: 1; }
+  .clock-slate .skip-btn { grid-column: 2; width: auto; margin-top: 3px; white-space: nowrap; }
+  .skip-long { display: none; } .skip-short { display: inline; }
+  .oracle-head { display: none; }
+  .panel .steps { margin-top: 4px; }
+  .step.current, .step.dead { flex-grow: 2.2; }
+  .step.pending .step-word { display: none; }
+  .map-news { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+}
