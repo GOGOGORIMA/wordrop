@@ -152,6 +152,7 @@
       this.generate();
       this.makeSkyDecor();
       this.view = { zoom: 1, px: 0, py: 0 };
+      this.fitK = 0.9;
       this.computeFit();
       this.loop = this.loop.bind(this);
       this.running = false;
@@ -255,10 +256,18 @@
         const sx = OX + (x - y) * 4, gy = OY + (x + y) * 2;
         x0 = Math.min(x0, sx - 4); x1 = Math.max(x1, sx + 4);
         y0 = Math.min(y0, gy - this.h[i] * HS - 10);
-        y1 = Math.max(y1, gy + 6 + this.depth[i] * 0.3);
+        y1 = Math.max(y1, gy + 6 + this.depth[i] * (this.fitK < 0.85 ? 0.75 : 0.3));
       }
-      const z = Math.min((W * 0.92) / (x1 - x0), (H * 0.9) / (y1 - y0));
+      const k = this.fitK;
+      const z = Math.min((W * (k + 0.02)) / (x1 - x0), (H * k) / (y1 - y0));
       this.fit = { z, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2 };
+    }
+    /* 島を枠に収める割合（PC 0.9 / スマホは裏側まで入るよう小さめ） */
+    setFitScale(k) {
+      if (this.fitK === k) return;
+      this.fitK = k;
+      this.computeFit();
+      this.resetView();
     }
     cam() {
       const z = this.fit.z * this.view.zoom;

@@ -1285,9 +1285,13 @@
   }
 
   /* ---------- キャンバスのフィット ---------- */
+  const MOBILE = window.matchMedia('(max-width: 767px)');
   function fitCanvas() {
     const pane = $('map-pane');
-    const pad = window.matchMedia('(max-width: 760px), (max-width: 1024px) and (orientation: portrait)').matches ? 6 : 24;
+    const mobile = MOBILE.matches;
+    // スマホは島全体（浮島の底まで）が枠に収まるよう、初期ズームを控えめにする
+    if (game.world) game.world.setFitScale(mobile ? 0.8 : 0.9);
+    const pad = mobile ? 4 : 24;
     const pw = pane.clientWidth - pad, ph = pane.clientHeight - pad;
     if (pw <= 0 || ph <= 0) return;
     let s = Math.min(pw / W, ph / H);
@@ -1366,7 +1370,8 @@
     const pointers = new Map();
     let pinch = 0;
     canvas.addEventListener('pointerdown', (e) => {
-      canvas.setPointerCapture(e.pointerId);
+      // タッチはキャプチャしない（縦スクロールに移ったら pointercancel で自然に解放される）
+      if (e.pointerType === 'mouse') canvas.setPointerCapture(e.pointerId);
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinch = Math.hypot(a.x - b.x, a.y - b.y); }
     });
@@ -1390,6 +1395,7 @@
     const endPointer = (e) => { pointers.delete(e.pointerId); if (pointers.size < 2) pinch = 0; if (!pointers.size) canvas.classList.remove('grabbing'); };
     canvas.addEventListener('pointerup', endPointer);
     canvas.addEventListener('pointercancel', endPointer);
+    canvas.addEventListener('lostpointercapture', endPointer);
     canvas.addEventListener('dblclick', () => game.world && game.world.resetView());
     document.querySelectorAll('.map-ctrl button').forEach((b) => b.addEventListener('click', () => {
       if (!game.world) return;
@@ -1412,6 +1418,7 @@
     canvas.addEventListener('mouseleave', () => tip.classList.add('hidden'));
 
     window.addEventListener('resize', fitCanvas);
+    if (MOBILE.addEventListener) MOBILE.addEventListener('change', fitCanvas);
     if (window.ResizeObserver) new ResizeObserver(fitCanvas).observe($('map-pane'));
   }
 
