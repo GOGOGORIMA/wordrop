@@ -762,6 +762,199 @@
         s.light(cx + 2, s.front(cx, cy - 10, 4, 2) - 2, '#fff2a0');
       });
     },
+    /* ---------- 時代相応の街並み ---------- */
+    nagaya(v) {
+      return make(30, 22, 15, (s) => {
+        const { cx, cy } = s;
+        s.box(cx, cy, 9, 4, '#c8b088', '#dcc49c', '#a89068');
+        for (let dx = -8; dx < 0; dx += 3) s.rect(cx + dx, s.front(cx, cy, 9, dx) - 3, 1, 3, '#4a3020');
+        for (let dx = -7; dx < 0; dx += 3) s.light(cx + dx, s.front(cx, cy, 9, dx) - 2, '#ffcf6a');
+        s.roof(cx, cy, 10, 4, 3, '#5a5650', '#3e3a36', { eave: '#26221e' });
+      });
+    },
+    yagura(v) {
+      return make(18, 34, 28, (s) => {
+        const { cx, cy } = s;
+        for (const ox of [-3, 2]) s.rect(cx + ox, cy - 14, 1, 14, '#6a4426');
+        for (let k = 0; k < 14; k += 4) s.rect(cx - 3, cy - k - 2, 6, 1, '#8a5a30');
+        s.box(cx, cy - 14, 4, 5, '#a87848', '#c08a52', '#7a5230');
+        s.light(cx - 2, cy - 17, '#ffb04a');
+        s.roof(cx, cy - 14, 5, 5, 4, '#4a3a2a', '#2e2418', { eave: '#1a140e' });
+      });
+    },
+    brick(v) {
+      const r = rng(v * 13 + 5);
+      return make(22, 34, 26, (s) => {
+        const { cx, cy } = s;
+        const hgt = 12 + (v % 3) * 3;
+        s.box(cx, cy, 6, hgt, '#9a4a32', '#b85a3a', '#8a3a26', { rim: '#d8d0c0' });
+        for (let dx = -5; dx < 6; dx += 2) {
+          const yF = s.front(cx, cy, 6, dx);
+          for (let k = 3; k < hgt - 1; k += 4) { if (r() < 0.7) s.light(cx + dx, yF - k, '#ffe7a0'); else s.px(cx + dx, yF - k, '#f0ece0'); }
+        }
+        s.roof(cx, cy, 7, hgt, 3, '#4a5058', '#343a42');
+      });
+    },
+
+    /* ---------- オーパーツ（神託による時代無視の突然変異） ---------- */
+    stadium(v) {
+      return make(56, 46, 30, (s) => {
+        const { cx, cy } = s;
+        const rx = 22, ry = 11, hh = 7;
+        for (let x = -rx; x < rx; x++) {
+          const e = Math.sqrt(Math.max(0, 1 - ((x + 0.5) * (x + 0.5)) / (rx * rx)));
+          const yb = Math.round(cy - e * ry), yf = Math.round(cy + e * ry);
+          s.rect(cx + x, yb - hh, 1, hh + 1, '#8a8e98');
+          s.px(cx + x, yb - hh, '#e8eaf0');
+          // グラウンド（芝と内野の土）
+          for (let y = yb + 1; y < yf - hh + 1; y++) {
+            const inner = Math.abs(x) + Math.abs(y - cy + 2) * 2 < 10;
+            s.px(cx + x, y, inner ? '#c89a5a' : ((x + y) & 2 ? '#3aa83a' : '#4ab84a'));
+          }
+        }
+        for (const [dx, dy] of [[0, -4], [6, -1], [0, 2], [-6, -1]]) s.px(cx + dx, cy + dy, '#ffffff');
+        for (let x = -rx; x < rx; x++) {
+          const e = Math.sqrt(Math.max(0, 1 - ((x + 0.5) * (x + 0.5)) / (rx * rx)));
+          const yf = Math.round(cy + e * ry);
+          s.rect(cx + x, yf - hh, 1, hh + 1, x < 0 ? '#c8ccd4' : '#a4a8b2');
+          s.px(cx + x, yf - hh, '#f4f6fa');
+          if ((x & 3) === 0) s.light(cx + x, yf - 3, '#8ad0ff');
+        }
+        // ナイター照明塔
+        for (const [ox, oy] of [[-rx + 2, -4], [rx - 3, -4], [-rx + 6, 6], [rx - 7, 6]]) {
+          s.rect(cx + ox, cy + oy - 22, 1, 22, '#6a6e78');
+          s.rect(cx + ox - 2, cy + oy - 25, 5, 3, '#3a3e48');
+          for (let k = -2; k < 3; k++) s.light(cx + ox + k, cy + oy - 24, '#ffffe0');
+        }
+      });
+    },
+    glasstower(v) {
+      const r = rng(v * 71 + 3);
+      const hgt = 34 + Math.floor(r() * 18);
+      return make(20, hgt + 20, hgt + 13, (s) => {
+        const { cx, cy } = s;
+        const a = 6;
+        s.box(cx, cy, a, hgt, '#9adcf0', '#6ac8ec', '#3a8ab8', { rim: '#ffffff' });
+        for (let dx = -a; dx < a; dx++) {
+          const yF = s.front(cx, cy, a, dx);
+          for (let k = 2; k < hgt; k += 3) s.px(cx + dx, yF - k, dx < 0 ? '#4ab0dc' : '#2a6a98');
+          if ((dx + 20) % 4 === 1) for (let k = 4; k < hgt - 2; k += 6) if (r() < 0.5) s.light(cx + dx, yF - k, '#fffbe0');
+        }
+        s.rect(cx - 1, cy - hgt - a / 2 - 6, 1, 6, '#c0c0c0');
+        s.emit(cx - 1, cy - hgt - a / 2 - 7, 'blink');
+      });
+    },
+    tapioca(v) {
+      const pastel = [['#ffb0d0', '#e880a8'], ['#a8e0ff', '#70b8e0'], ['#d0b0ff', '#a080e0']][v % 3];
+      return make(22, 30, 20, (s) => {
+        const { cx, cy } = s;
+        s.box(cx, cy, 5, 6, '#f8f4ec', '#ffffff', '#d8d0c4');
+        for (let dx = -5; dx < 5; dx++) { const yF = s.front(cx, cy, 5, dx); s.px(cx + dx, yF - 6, (dx & 1) ? pastel[0] : '#ffffff'); s.px(cx + dx, yF - 5, pastel[1]); }
+        // 巨大タピオカカップの看板
+        s.rect(cx + 1, cy - 16, 5, 7, '#f4e8d8'); s.rect(cx + 1, cy - 17, 5, 1, pastel[1]);
+        s.rect(cx + 3, cy - 20, 1, 4, '#ff6a8a');
+        s.px(cx + 2, cy - 11, '#3a2010'); s.px(cx + 4, cy - 10, '#3a2010'); s.px(cx + 3, cy - 12, '#3a2010');
+        s.light(cx - 3, cy + 1, '#ffe0f0'); s.light(cx - 2, cy + 1, '#ffe0f0');
+      });
+    },
+    vending(v) {
+      const c = [['#d82a2a', '#a01818'], ['#2a6ad8', '#1a4aa0'], ['#f0f0f0', '#c0c0c8']][v % 3];
+      return make(12, 18, 13, (s) => {
+        const { cx, cy } = s;
+        s.box(cx, cy, 2, 8, c[0], c[0], c[1]);
+        s.light(cx - 2, cy - 6, '#e8f8ff'); s.light(cx - 1, cy - 6, '#e8f8ff'); s.light(cx - 2, cy - 5, '#ffe060'); s.light(cx - 1, cy - 4, '#60ff90');
+      });
+    },
+    neon(v) {
+      const cols = ['#ff3ad0', '#25e0ff', '#ffe03a', '#7aff6a'];
+      return make(26, 36, 30, (s) => {
+        const { cx, cy } = s;
+        s.box(cx, cy, 6, 7, '#3a3448', '#4a4458', '#2a2438');
+        s.rect(cx - 6, cy - 26, 1, 22, '#5a5a66'); s.rect(cx + 5, cy - 24, 1, 20, '#5a5a66');
+        for (let k = 0; k < 4; k++) {
+          const col = cols[(k + v) % 4];
+          for (let x = -5; x < 5; x++) if ((x + k) % 3) s.light(cx + x, cy - 24 + k * 4, col);
+        }
+        for (let x = -5; x < 5; x++) s.light(cx + x, s.front(cx, cy, 6, x) - 3, cols[v % 4]);
+      });
+    },
+    parabola(v) {
+      return make(26, 28, 20, (s) => {
+        const { cx, cy } = s;
+        s.box(cx, cy, 4, 3, '#9a9aa4', '#b4b4be', '#7a7a84');
+        s.rect(cx, cy - 10, 2, 8, '#8a8a94');
+        for (let y = -7; y <= 7; y++) {
+          const w = Math.round(9 * Math.sqrt(1 - (y * y) / 50));
+          s.rect(cx - w + 1, cy - 14 + y, w * 2, 1, y < 0 ? '#ffffff' : '#d0d4dc');
+        }
+        s.rect(cx, cy - 14, 2, 2, '#5a5a66'); s.rect(cx + 1, cy - 20, 1, 6, '#5a5a66');
+        s.emit(cx + 1, cy - 21, 'blink');
+      });
+    },
+    kombinat(v) {
+      return make(46, 50, 34, (s) => {
+        const { cx, cy } = s;
+        for (const ox of [-10, -3, 4]) {
+          s.rect(cx + ox, cy - 34, 3, 30, '#a8a8b0'); s.rect(cx + ox + 2, cy - 34, 1, 30, '#7a7a84');
+          s.rect(cx + ox, cy - 30, 3, 2, '#d83a2a'); s.rect(cx + ox, cy - 22, 3, 2, '#f0f0f0');
+          s.emit(cx + ox + 1, cy - 36, 'smoke');
+        }
+        s.box(cx - 2, cy, 11, 6, '#8a929c', '#a4acb6', '#6a727c', { rim: '#5a626c' });
+        for (const ox of [10, 15]) s.dome(cx + ox, cy - 1, 4, '#f0f0f4', '#c8ccd4', '#9aa0aa');
+        s.rect(cx + 6, cy - 6, 10, 1, '#c8a040');
+        for (let dx = -12; dx < -2; dx += 2) s.light(cx + dx, s.front(cx - 2, cy, 11, dx + 2) - 2, '#ffd27a');
+      });
+    },
+    reactor(v) {
+      return make(34, 46, 34, (s) => {
+        const { cx, cy } = s;
+        // 冷却塔（双曲面）
+        for (let k = 0; k < 26; k++) {
+          const t = k / 26;
+          const w = Math.round(8 - Math.sin(t * Math.PI) * 3 + t * 1.5);
+          s.rect(cx - 6 - w, cy - k, w, 1, '#c8ccd4'); s.rect(cx - 6, cy - k, w, 1, '#9aa0aa');
+        }
+        s.emit(cx - 6, cy - 28, 'smoke');
+        s.box(cx + 8, cy + 2, 5, 3, '#c8ccd4', '#e0e4ea', '#9aa0aa');
+        s.dome(cx + 8, cy - 1, 5, '#ffffff', '#d8dce4', '#a8aeb8');
+        s.light(cx + 8, cy - 6, '#7affb0');
+        s.light(cx + 6, cy + 2, '#ffd27a');
+      });
+    },
+    ferris(v) {
+      return make(44, 58, 52, (s) => {
+        const { cx, cy } = s;
+        const hy = cy - 26, R = 19;
+        for (let a = 0; a < Math.PI * 2; a += 0.05) s.px(cx + Math.round(Math.cos(a) * R), hy + Math.round(Math.sin(a) * R), '#e8e8f0');
+        for (let k = 0; k < 12; k++) {
+          const a = (k / 12) * Math.PI * 2;
+          for (let rr = 0; rr < R; rr += 2) s.px(cx + Math.round(Math.cos(a) * rr), hy + Math.round(Math.sin(a) * rr), '#a8a8b8');
+          const gx = cx + Math.round(Math.cos(a) * R), gy = hy + Math.round(Math.sin(a) * R);
+          const col = ['#ff5a5a', '#ffd23f', '#4fd8ff', '#7aff8a'][k % 4];
+          s.rect(gx - 1, gy + 1, 3, 3, col);
+          s.light(gx, gy, '#fff6c0');
+        }
+        for (let k = 0; k < 26; k++) { s.px(cx - 1 - Math.round(k * 0.35), hy + k, '#8a8a98'); s.px(cx + 1 + Math.round(k * 0.35), hy + k, '#8a8a98'); }
+        s.rect(cx - 1, hy - 1, 3, 3, '#f0d040');
+        s.box(cx, cy, 6, 2, '#d0c0a0', '#e0d0b0', '#b0a080');
+      });
+    },
+    goldmonument(v) {
+      return make(30, 64, 56, (s) => {
+        const { cx, cy } = s;
+        s.box(cx, cy, 7, 6, '#3a3040', '#4a4050', '#2a2030');
+        const by = cy - 8;
+        // 謎の黄金巨像
+        s.rect(cx - 3, by - 20, 7, 20, '#f0c838'); s.rect(cx + 2, by - 20, 2, 20, '#b88a10');
+        s.rect(cx - 2, by - 27, 5, 7, '#ffe070'); s.rect(cx + 1, by - 27, 2, 7, '#c89a18');
+        s.rect(cx - 6, by - 26, 2, 12, '#f0c838'); s.rect(cx + 5, by - 34, 2, 14, '#f0c838');
+        s.rect(cx + 4, by - 38, 4, 4, '#fff6a0');
+        s.light(cx - 1, by - 25, '#ff4a4a'); s.light(cx + 1, by - 25, '#ff4a4a');
+        for (let k = 0; k < 6; k++) s.light(cx - 4 + k * 2, by - 2, '#fff6c0');
+        s.light(cx + 5, by - 37, '#ffffff');
+      });
+    },
+
   };
 
   WD.Sprites = {

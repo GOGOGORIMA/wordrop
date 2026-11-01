@@ -111,8 +111,35 @@ WD.BUILDINGS = {
   tulip:    { name: 'チューリップ畑', r: 2 },
   wall:     { name: '城壁', r: 2 },
   goldhall: { name: '黄金の楼閣', r: 1 },
+  nagaya:   { name: '長屋', r: 2 },
+  yagura:   { name: '櫓', r: 1 },
+  brick:    { name: 'レンガ造りの建物', r: 1 },
+  // ここから神託によるオーパーツ（時代を無視した突然変異）
+  stadium:  { name: 'ナイター照明付き球場', r: 3 },
+  glasstower: { name: 'ガラス張りの高層ビル', r: 1 },
+  tapioca:  { name: 'タピオカ屋', r: 1 },
+  vending:  { name: '自動販売機', r: 0 },
+  neon:     { name: 'ネオン街', r: 1 },
+  parabola: { name: 'パラボラアンテナ', r: 1 },
+  kombinat: { name: '巨大コンビナート', r: 3 },
+  reactor:  { name: '原子炉と冷却塔', r: 2 },
+  ferris:   { name: '巨大観覧車', r: 2 },
+  goldmonument: { name: '謎の黄金巨像', r: 2 },
 };
 
+/* 神託が生む「時代を無視した突然変異（オーパーツ）」のカテゴリ */
+WD.MUTANTS = {
+  stadium:     { name: '巨大球場・ドーム', build: [['stadium', 1]] },
+  skyscraper:  { name: 'ガラス張りの高層ビル街', build: [['glasstower', 3]] },
+  convenience: { name: 'コンビニ・ネオン街', build: [['konbini', 1], ['tapioca', 1], ['neon', 1], ['vending', 2]] },
+  railway:     { name: '高架線路と新幹線', rail: true },
+  highway:     { name: 'アスファルト道路と自動車', highway: true },
+  tower:       { name: '電波塔・アンテナ群', build: [['tower', 1], ['parabola', 2], ['solar', 1]] },
+  factory:     { name: 'コンビナート・原子炉', build: [['kombinat', 1], ['reactor', 1]] },
+  amusement:   { name: '観覧車・黄金の巨像', build: [['ferris', 1], ['goldmonument', 1]] },
+};
+WD.MUTANT_ALIAS = { office: 'skyscraper', shop: 'convenience', train: 'railway', car: 'highway', antenna: 'tower', plant: 'factory', monument: 'amusement' };
+WD.MUTANT_YEARS = [1, 4, 8, 12];
 WD.SKIES = ['clear', 'dusk', 'night', 'storm', 'toxic', 'aurora', 'crimson', 'golden', 'cyber'];
 WD.SEAS = ['blue', 'emerald', 'dark', 'red', 'purple', 'frozen', 'golden', 'toxic'];
 WD.LANDS = ['normal', 'lush', 'desert', 'frozen', 'wasteland', 'cyber', 'flooded', 'sakura', 'jungle', 'urban'];

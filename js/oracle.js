@@ -125,7 +125,7 @@
     魔改造: ['{place}の職人が「{w}」を{hook}と融合させ、まったく新しい「{place}式{w}」を完成させた。', '「{w}」専用の建物が{place}の様式で建てられ、街並みが一変した。', '「{w}」は当時の技術で作り直され、本来の姿とは似ても似つかない姿に進化した。'],
     制度化: ['{ruler}は「{w}」を年貢・税の仕組みに組み込み、払えない者には罰を科した。', '「{w}」を定めた法が制定され、{place}の暮らしの隅々にまで規則が及んだ。', '軍も商いも「{w}」抜きでは動かなくなり、ついに国の根幹ルールに組み込まれた。'],
     世代交代: ['「{w}」を当たり前に知る子どもたちが大人になり、古い世代を置き去りにし始めた。', '若い世代は「{w}」を親とはまったく違う使い方で楽しみ、年寄りは眉をひそめた。', '「{w}以前」を知らない世代が、{place}の要職を占め始めた。'],
-    定着: ['投下から15年。{place}は「{w}」なしでは考えられない社会になった。{hook3}も、もはや以前の姿ではない。', '15年が過ぎ、「{w}」は空気のように当たり前の存在となった。旅人は{place}を「{w}の国」と呼ぶ。'],
+    定着: ['あれから15年。{place}は「{w}」なしでは考えられない社会になった。{hook3}も、もはや以前の姿ではない。', '15年が過ぎ、「{w}」は空気のように当たり前の存在となった。旅人は{place}を「{w}の国」と呼ぶ。'],
     長期余波: ['「{w}」は世代を超えて進化を続け、{place}の文化そのものに溶け込んだ。', '「{w}」の起源を知る者はもういない。それでも{place}は{w}とともに回っている。', '「{w}」はさらに姿を変え、次の時代の常識の土台となった。'],
   };
 
@@ -169,6 +169,49 @@
     return out;
   }
 
+  /* ---------- オーパーツ（時代無視の突然変異）の選び方 ---------- */
+  const MUTANT_KW = [
+    [['野球', 'サッカー', 'オリンピック', 'スタジアム', 'ドーム', '筋トレ', 'プロテイン', 'ジム', 'アイドル', 'ライブ', '推し'], 'stadium'],
+    [['新幹線', '鉄道', '電車', '満員電車', 'リニア', '駅'], 'railway'],
+    [['車', 'カー', 'ドライブ', 'トラック', 'キックボード', '宅配', '渋滞'], 'highway'],
+    [['コンビニ', 'タピオカ', '自販機', '自動販売機', 'ポイント', 'サブスク', 'ガチャ', 'セール', '通販', 'カップ麺', 'ポテチ', 'コーヒー'], 'convenience'],
+    [['株', '会社', 'リモート', 'テレワーク', '残業', '年功', '終身', '確定申告', '銀行', '投資', 'コンプライアンス', '会議'], 'skyscraper'],
+    [['スマホ', 'AI', 'インターネット', 'Wi-Fi', 'WiFi', 'SNS', '配信', '動画', '電波', 'テレビ', 'ラジオ', 'ドローン', '既読'], 'tower'],
+    [['工場', '蒸気', '半導体', '核', '原子', 'ロボット', '電気', 'エンジン', '機関', '量子'], 'factory'],
+    [['テーマパーク', '遊園地', 'ハロウィン', '祭', 'パンダ', '宝くじ', '陰謀', '占い', '神', 'フィギュア'], 'amusement'],
+  ];
+  const MUTANT_BY_CAT = {
+    commerce: ['convenience', 'skyscraper', 'highway', 'amusement'],
+    tech: ['tower', 'factory', 'railway', 'skyscraper'],
+    food: ['convenience', 'stadium', 'factory', 'amusement'],
+    culture: ['stadium', 'amusement', 'tower', 'convenience'],
+    conflict: ['factory', 'highway', 'tower', 'amusement'],
+    nature: ['amusement', 'railway', 'convenience', 'tower'],
+    social: ['skyscraper', 'highway', 'railway', 'tower'],
+    mystery: ['amusement', 'tower', 'railway', 'stadium'],
+  };
+  function offlineMutants(word, cat) {
+    const list = MUTANT_BY_CAT[cat].slice();
+    const hit = MUTANT_KW.find(([kws]) => kws.some((k) => word.toUpperCase().includes(k.toUpperCase())));
+    if (hit) { list.splice(list.indexOf(hit[1]) >= 0 ? list.indexOf(hit[1]) : list.length - 1, 1); list.unshift(hit[1]); }
+    return WD.MUTANT_YEARS.map((year, i) => ({ year, category: list[i % list.length] }));
+  }
+  const MUTANT_LINES = {
+    stadium: '{place}の野原に、夜も昼のように輝く照明塔を備えた巨大な円形の建物が一夜にして現れた。{who}は「「{w}」の神殿だ」とささやき合っている。',
+    skyscraper: '天を突くガラス張りの塔が{place}に次々とそびえ立った。{who}は自分の姿が映る壁を前に、腰を抜かした。',
+    convenience: '昼も夜も光り続ける色とりどりの小屋が{place}の辻に現れた。{who}は吸い込まれるように列を作っている。',
+    railway: '島を横切る高架の上を、白い鉄の大蛇が轟音とともに駆け抜けた。{who}は一斉にひれ伏した。',
+    highway: '黒く硬い一本道が島を貫き、馬よりはるかに速い鉄の箱が唸りを上げて行き交い始めた。',
+    tower: '鉄骨の巨塔と白い大皿が丘の上に立ち、空に向かって何かを語りかけている。{ruler}も首をかしげた。',
+    factory: '煙突が林立する巨大な工場群と、湯気を吐く丸い塔が現れ、昼夜を問わず唸りを上げ始めた。',
+    amusement: 'ゆっくり回る巨大な光の輪と、黄金に輝く謎の巨像が{place}を見下ろすようになった。',
+  };
+  WD.mutantLine = (cat, ctx) => fill('「' + ctx.word + '」がもたらしたのか――' + (MUTANT_LINES[WD.MUTANT_ALIAS[cat] || cat] || MUTANT_LINES.amusement), ctx);
+  // AI の本文から、ゲームのシステム用語（段階名など）を取り除く
+  const STAGE_RE = new RegExp('^\\s*[【\\[［]?\\s*(?:' + ['着弾', '試行', '流行', '摩擦', '副作用', '魔改造', '制度化', '世代交代', '定着', '長期余波', '市井'].join('|') + ')(?:期)?\\s*[】\\]］]?\\s*[:：]?\\s*');
+  const cleanText = (t) => String(t || '').replace(STAGE_RE, '').replace(/[（(]時間停止[）)]/g, '').replace(/^\s*\+?\d+年(目|後)[:：、]?\s*/, '').trim();
+  WD.cleanText = cleanText;
+
   /* 単語投下 → 15年間の濃密タイムライン（レイヤーA 11件＋レイヤーB 12〜15件、オフライン） */
   function offlineDrop(ctx) {
     const cat = classify(ctx.word);
@@ -205,7 +248,7 @@
       return { offset: st.offset, stage: st.key, text, delta, map };
     });
     const n = WD.MURMUR_COUNT[0] + Math.floor(r() * (WD.MURMUR_COUNT[1] - WD.MURMUR_COUNT[0] + 1));
-    return { title: fill(C.titles[(r() * C.titles.length) | 0], ctx), category: cat, events, murmurs: offlineMurmurs(ctx, n) };
+    return { title: fill(C.titles[(r() * C.titles.length) | 0], ctx), category: cat, events, murmurs: offlineMurmurs(ctx, n), mutants: offlineMutants(ctx.word, cat) };
   }
   /* 吹き出しの隙間を埋める、その場で作る市井のざわめき */
   WD.localMurmur = (ctx) => offlineMurmurs(ctx, 1)[0];
@@ -394,6 +437,8 @@ ${dropsBlock(ctx.drops)}${pending}
 - レイヤーB（murmurs）: メイン事件の合間（4〜6ヶ月おき）に流れる「市井のざわめき」を${WD.MURMUR_COUNT[0]}〜${WD.MURMUR_COUNT[1]}個。庶民・兵士・職人・貴族などのユーモラスな日常風景や小事件を、15年間の時系列順に1行40〜60文字で。say は浮島の住人の頭上に出る吹き出しの一言（${WD.SAY_MAX}文字以内のセリフや擬音）。
 - 必ず「この時代固有の要素」（${e.hooks.join('、')}）や実在の人物・出来事・地名（${e.ruler}、${e.place}など）と単語を化学反応させ、この時代でしか起きないバタフライ・エフェクトを描くこと。年月が進めば権力者も代替わりしてよい。
 - ユーモラスに、しかし史実の固有名詞はもっともらしく。
+- text と murmurs の文章には「着弾」「試行」「魔改造」などの段階名や【】のラベル、「+3年」のような年数表記を書かないこと。プレイヤーが読む歴史物語の地の文として、その年に実際に起きた出来事と人々の反応だけを書く。
+- mutant_objects: その単語から連想される「時代背景を完全に無視したオーパーツ」を、投下から1・4・8・12年後に島へ出現させる。category は ${Object.keys(WD.MUTANTS).join('|')} から選ぶ（例: 野球→stadium、スマホ→tower、新幹線→railway、車→highway、コンビニ→convenience、株式会社→skyscraper、原子力→factory、テーマパーク→amusement）。当時の技術水準や時代考証は一切気にしなくてよい。
 
 # 数値・描画のルール
 - 人口・技術・秩序のいずれかが0以下または100以上になると文明崩壊（ゲームオーバー）。単語と時代の性質に忠実に増減させること。
@@ -414,6 +459,9 @@ ${dropsBlock(ctx.drops)}${pending}
   "murmurs": [
     {"text": "城下町ではプロテインの味を巡る奇妙な口論が毎晩発生している。", "say": "抹茶味こそ至高！"},
     …
+  ],
+  "mutant_objects": [
+    {"year": 1, "category": "convenience"}, {"year": 4, "category": "highway"}, {"year": 8, "category": "stadium"}, {"year": 12, "category": "railway"}
   ]
 }}`;
   }
@@ -466,7 +514,7 @@ ${ctx.history && ctx.history.length ? '\n# 狂ってしまった史実の大事�
         return {
           offset: off,
           stage: WD.stageOf(off).key,
-          text: String(s.text || fb.text).slice(0, 140),
+          text: cleanText(s.text || fb.text).slice(0, 140) || fb.text,
           delta: {
             population: clampInt(d.population, -10, 10),
             technology: clampInt(d.technology, -10, 10),
@@ -487,8 +535,15 @@ ${ctx.history && ctx.history.length ? '\n# 狂ってしまった史実の大事�
         const list = (Array.isArray(raw.murmurs) ? raw.murmurs : [])
           .filter((m) => m && m.text)
           .slice(0, WD.MURMUR_COUNT[1])
-          .map((m) => ({ text: String(m.text).replace(/^\s*\[?市井\]?\s*/, '').slice(0, 80), say: clipSay(m.say) || '…!' }));
+          .map((m) => ({ text: cleanText(m.text).slice(0, 80), say: clipSay(m.say) || '…!' }));
         return list.length >= WD.MURMUR_COUNT[0] ? list : list.concat(fallback.murmurs.slice(0, WD.MURMUR_COUNT[0] - list.length));
+      })(),
+      mutants: (() => {
+        const list = (Array.isArray(raw.mutant_objects) ? raw.mutant_objects : [])
+          .map((m) => ({ year: clampInt(m && m.year, 0, 15), category: WD.MUTANT_ALIAS[m && m.category] || (m && m.category) }))
+          .filter((m) => WD.MUTANTS[m.category])
+          .slice(0, 6);
+        return list.length ? list : fallback.mutants;
       })(),
     };
   }
@@ -614,7 +669,7 @@ ${dropsBlock(ctx.drops)}
     const m = raw.map || {};
     return {
       title: String(raw.title || fb.title).slice(0, 40),
-      text: String(raw.text || fb.text).slice(0, 160),
+      text: cleanText(raw.text || fb.text).slice(0, 160),
       delta: {
         population: clampInt(d.population, -20, 20),
         technology: clampInt(d.technology, -20, 20),

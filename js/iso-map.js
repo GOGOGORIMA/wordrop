@@ -7,6 +7,7 @@
   const SEA_Y = H - 78;
 
   const VOID = 0, WATER = 1, SAND = 2, GRASS = 3, FOREST = 4, ROCK = 5, SNOW = 6;
+  const USE_FIELD = 1, USE_DIRT = 2, USE_STONE = 3, USE_ASPHALT = 4; // 土地利用（田畑・土の道・石畳・アスファルト）
 
   /* ---------- 乱数・ノイズ ---------- */
   function mulberry32(a) {
@@ -151,6 +152,13 @@
       this.tintDirty = true;
 
       this.generate();
+      this.use = new Uint8Array(N * N);
+      this.rail = new Uint8Array(N * N);
+      this.rails = [];
+      this.vehicles = [];
+      this.highway = false;
+      this.era = opts.era || null;
+      this.glitchPulse = 0;
       this.makeSkyDecor();
       this.view = { zoom: 1, px: 0, py: 0 };
       this.fitK = 0.9;
@@ -395,15 +403,407 @@
           g.fillRect(sx - 4, sy + 1, 8, 2);
           g.fillRect(sx - 2, sy + 3, 4, 1);
           if (water && r > 0.85) { g.fillStyle = sea[2]; g.fillRect(sx - 1, sy + 1, 2, 1); }
+          const u = this.use[i];
+          if (u) this.drawUse(g, u, water, sx, sy, x, y);
 
           // 木
-          if (!water && !this.occ[i]) {
+          if (!water && !this.occ[i] && !u && !this.rail[i]) {
             const tr = hash2(x, y, 7);
             if ((t === FOREST && tr < (L.extraTrees ? 0.85 : 0.5)) || (L.extraTrees && t === GRASS && tr < L.extraTrees)) this.drawTree(g, sx, sy + 2, L, hash2(x, y, 11));
           }
+          if (this.rail[i]) this.drawRail(g, sx, sy, this.rail[i]);
         }
       }
       this.dirty = false;
+    }
+
+    /* =================================================================
+       土地利用（耕作地・道・橋・線路）と乗り物 ― 時代とパラメータで自然に発展
+       ================================================================= */
+    fieldPalette() {
+      const jp = this.era && this.era.region === 'japan';
+      const P = jp
+        ? { spring: ['#86b8d0', '#8ad070'], summer: ['#4aa83a', '#3a8a2a'], autumn: ['#e8c040', '#c89a20'], winter: ['#9a7a50', '#7a5a38'] }
+        : { spring: ['#8ac850', '#6aa83a'], summer: ['#b8c84a', '#98a83a'], autumn: ['#e8c060', '#c8a040'], winter: ['#9a8060', '#7a6448'] };
+      return P[this.season || 'summer'];
+    }
+
+    drawUse(g, u, water, sx, sy, x, y) {
+      const px = (xx, yy, w, h, c) => { g.fillStyle = c; g.fillRect(xx, yy, w, h); };
+      const tile = (c) => { px(sx - 2, sy, 4, 1, c); px(sx - 4, sy + 1, 8, 2, c); px(sx - 2, sy + 3, 4, 1, c); };
+      if (u === USE_FIELD) {
+        const pal = this.fieldPalette();
+        tile(pal[0]);
+        px(sx - 3, sy + 1 + ((x + y) & 1), 6, 1, pal[1]);
+        return;
+      }
+      if (water) { // 橋（土の道は木橋、石畳・舗装は石橋）
+        const wood = u === USE_DIRT;
+        px(sx - 3, sy - 1, 6, 3, wood ? '#9a6a3a' : '#b4b0a6');
+        px(sx - 3, sy + 1, 6, 1, wood ? '#6a4426' : '#8a867c');
+        px(sx - 4, sy - 3, 1, 4, wood ? '#5a3a20' : '#7a766c'); px(sx + 3, sy - 3, 1, 4, wood ? '#5a3a20' : '#7a766c');
+        return;
+      }
+      if (u === USE_DIRT) { tile('#c8a874'); px(sx - 1, sy + 2, 2, 1, '#a8885a'); return; }
+      if (u === USE_STONE) { tile('#aaa69c'); if ((x + y) & 1) px(sx - 2, sy + 1, 2, 1, '#8a867c'); else px(sx + 1, sy + 2, 2, 1, '#8a867c'); return; }
+      tile('#3c3c46');
+      if ((x + y) % 3 === 0) px(sx - 1, sy + 2, 2, 1, '#e8d040');
+    }
+
+    drawRail(g, sx, sy, kind) {
+      const px = (xx, yy, w, h, c) => { g.fillStyle = c; g.fillRect(xx, yy, w, h); };
+      if (kind === 2) { // オーパーツの高架線路
+        const top = sy - 9;
+        px(sx - 1, top + 3, 2, 9, '#8a8e98');
+        px(sx - 4, top + 1, 8, 2, '#c4c8d2'); px(sx - 2, top, 4, 1, '#e4e8f0'); px(sx - 2, top + 3, 4, 1, '#8a8e98');
+        px(sx - 3, top + 1, 6, 1, '#6a6e78');
+      } else {
+        px(sx - 3, sy + 1, 6, 2, '#6a4426');
+        px(sx - 3, sy + 1, 6, 1, '#a8a8b0');
+      }
+    }
+
+    refreshRoadList() {
+      this.roadList = [];
+      this.asphaltList = [];
+      for (let i = 0; i < N * N; i++) {
+        if (this.use[i] >= USE_DIRT) { this.roadList.push(i); if (this.use[i] === USE_ASPHALT) this.asphaltList.push(i); }
+      }
+    }
+
+    /* 毎月呼ぶ：人口で田畑が、技術と秩序で道が広がり、乗り物が行き交う */
+    growMonth(era) {
+      if (era) this.era = era;
+      const p = this.params;
+      let fields = 0, roads = 0;
+      for (let i = 0; i < N * N; i++) { if (this.use[i] === USE_FIELD) fields++; else if (this.use[i] >= USE_DIRT) roads++; }
+      let changed = false;
+      const wantF = Math.round(p.population * 7);
+      if (fields < wantF) changed = this.growFields(Math.min(8, wantF - fields)) || changed;
+      else if (fields > wantF + 24) changed = this.shrinkFields(Math.min(6, fields - wantF)) || changed;
+      const homes = this.buildings.filter((b) => !b.removing && b.fall === 0 && !b.mutant && b.r > 0);
+      const wantR = Math.round((p.technology + p.order) * 2.2 + homes.length * 3);
+      if (roads < wantR && homes.length >= 2) {
+        const tries = roads < wantR * 0.5 ? 2 : 1;
+        for (let k = 0; k < tries; k++) changed = this.buildRoadBetween(homes) || changed;
+      }
+      if (p.technology >= 45) changed = this.upgradeRoads(USE_DIRT, USE_STONE, 10) || changed;
+      if (p.technology >= 82) changed = this.upgradeRoads(USE_STONE, USE_ASPHALT, 10) || changed;
+      if (p.technology >= 72 && !this.rails.some((r) => r.kind === 1)) changed = this.buildRailway(1) || changed;
+      if (changed) { this.dirty = true; this.refreshRoadList(); }
+      this.syncVehicles();
+    }
+
+    isOpen(i) { return i >= 0 && this.type[i] !== VOID && !this.occ[i] && !this.rail[i]; }
+
+    growFields(n) {
+      const cand = [];
+      for (let k = 0; k < 70; k++) {
+        const i = this.landList[(this.rnd() * this.landList.length) | 0];
+        if (i === undefined || !this.isOpen(i) || this.use[i] || this.isWaterTile(i)) continue;
+        const t = this.type[i];
+        if (t === ROCK || t === SNOW || this.h[i] > 7) continue;
+        const x = i % N, y = (i / N) | 0;
+        let flat = true, nf = 0;
+        for (const [ox, oy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const j = this.idx(x + ox, y + oy);
+          if (j < 0 || this.type[j] === VOID) { flat = false; break; }
+          if (!this.isWaterTile(j) && Math.abs(this.h[j] - this.h[i]) > 1) flat = false;
+          if (this.use[j] === USE_FIELD) nf++;
+        }
+        if (!flat) continue;
+        const wd = this.waterDist[i];
+        cand.push({ i, s: nf * 3 + (wd < 8 ? 3 - wd * 0.4 : 0) + this.rnd() * 2 });
+      }
+      cand.sort((a, b) => b.s - a.s);
+      for (const c of cand.slice(0, n)) { this.use[c.i] = USE_FIELD; if (this.type[c.i] === FOREST) this.type[c.i] = GRASS; }
+      return cand.length > 0;
+    }
+
+    shrinkFields(n) {
+      let done = 0;
+      for (let k = 0; k < 400 && done < n; k++) {
+        const i = (this.rnd() * N * N) | 0;
+        if (this.use[i] === USE_FIELD) { this.use[i] = 0; done++; }
+      }
+      return done > 0;
+    }
+
+    /* 2点の間に、もっとも素直な道を引く（建物は避けて回り込み、川は橋で渡る）
+       ar / br は出発点・到着点の建物の敷地の半径。敷地の中は通り抜けてよい */
+    layPath(ax, ay, bx, by, type, overrideFields, ar, br) {
+      ar = ar || 0; br = br || 0;
+      const inSite = (x, y) => Math.max(Math.abs(x - ax), Math.abs(y - ay)) <= ar || Math.max(Math.abs(x - bx), Math.abs(y - by)) <= br;
+      let x = ax, y = ay, steps = 0, laid = 0, px = -1, py = -1;
+      while ((x !== bx || y !== by) && steps++ < 200) {
+        const dx = Math.sign(bx - x), dy = Math.sign(by - y);
+        const main = Math.abs(bx - x) >= Math.abs(by - y) ? [[dx, 0], [0, dy]] : [[0, dy], [dx, 0]];
+        // 正面が塞がっていたら横に回り込む
+        const side = main[0][0] ? [[0, 1], [0, -1]] : [[1, 0], [-1, 0]];
+        let moved = false;
+        for (const [ox, oy] of main.concat(side)) {
+          if (!ox && !oy) continue;
+          const nx = x + ox, ny = y + oy;
+          if (nx === px && ny === py) continue;
+          const j = this.idx(nx, ny);
+          if (j < 0 || this.type[j] === VOID) continue;
+          if (this.occ[j] && !inSite(nx, ny)) continue;
+          px = x; py = y; x = nx; y = ny; moved = true;
+          if (!this.occ[j] && !this.rail[j]) {
+            const u = this.use[j];
+            if (u === 0 || (u === USE_FIELD && overrideFields) || (u >= USE_DIRT && u < type)) {
+              this.use[j] = type; laid++;
+              if (this.type[j] === FOREST) this.type[j] = GRASS;
+            }
+          }
+          break;
+        }
+        if (!moved) break;
+      }
+      return laid > 0;
+    }
+
+    roadType() { const t = this.params.technology; return t < 45 ? USE_DIRT : t < 82 ? USE_STONE : USE_ASPHALT; }
+
+    buildRoadBetween(homes) {
+      const a = homes[(this.rnd() * homes.length) | 0];
+      let best = null, bd = 1e9;
+      for (const b of homes) {
+        if (b === a) continue;
+        const d = Math.abs(b.x - a.x) + Math.abs(b.y - a.y) + this.rnd() * 6;
+        if (d < bd && d < 40) { bd = d; best = b; }
+      }
+      if (!best) return false;
+      return this.layPath(a.x, a.y, best.x, best.y, this.roadType(), true, a.r, best.r);
+    }
+
+    upgradeRoads(from, to, n) {
+      let done = 0;
+      for (const i of this.roadList || []) {
+        if (done >= n) break;
+        if (this.use[i] === from && this.rnd() < 0.3) { this.use[i] = to; done++; }
+      }
+      return done > 0;
+    }
+
+    /* 島を横切る線路（kind 1：地上の鉄道、2：オーパーツの高架） */
+    buildRailway(kind) {
+      const used = new Set(this.rails.map((r) => r.axis + ':' + r.line));
+      for (let tries = 0; tries < 12; tries++) {
+        const axis = this.rnd() < 0.5 ? 'x' : 'y';
+        const line = 32 + ((this.rnd() * 36) | 0);
+        if (used.has(axis + ':' + line)) continue;
+        let bestRun = [], run = [];
+        for (let k = 0; k < N; k++) {
+          const i = axis === 'x' ? line * N + k : k * N + line;
+          if (this.type[i] !== VOID && !this.occ[i]) run.push(i);
+          else { if (run.length > bestRun.length) bestRun = run; run = []; }
+        }
+        if (run.length > bestRun.length) bestRun = run;
+        if (bestRun.length < 24) continue;
+        for (const i of bestRun) { this.rail[i] = kind; if (this.type[i] === FOREST) this.type[i] = GRASS; if (kind === 1 && this.use[i] === USE_FIELD) this.use[i] = 0; }
+        this.rails.push({ kind, axis, line, path: bestRun });
+        this.dirty = true;
+        return true;
+      }
+      return false;
+    }
+
+    /* オーパーツの高速道路：島の端から端へアスファルトを貫く */
+    buildHighway() {
+      const land = this.landList.filter((i) => !this.isWaterTile(i));
+      if (land.length < 10) return false;
+      const pickEdge = (fx) => {
+        let best = null, bs = -1e9;
+        for (let k = 0; k < 120; k++) {
+          const i = land[(this.rnd() * land.length) | 0];
+          const x = i % N, y = (i / N) | 0;
+          const s = fx(x, y) + this.rnd() * 6;
+          if (s > bs && !this.occ[i]) { bs = s; best = { x, y }; }
+        }
+        return best;
+      };
+      const a = pickEdge((x, y) => -x - y), b = pickEdge((x, y) => x + y);
+      const c = pickEdge((x, y) => x - y), d = pickEdge((x, y) => y - x);
+      let ok = false;
+      if (a && b) ok = this.layPath(a.x, a.y, b.x, b.y, USE_ASPHALT, true) || ok;
+      if (c && d) ok = this.layPath(c.x, c.y, d.x, d.y, USE_ASPHALT, true) || ok;
+      if (ok) { this.highway = true; this.dirty = true; }
+      return ok;
+    }
+
+    /* 時代と技術に合った乗り物 */
+    baseVehicleKinds() {
+      const t = this.params.technology;
+      const jp = this.era && this.era.region === 'japan';
+      const yr = this.era ? this.era.year : 0;
+      if (t < 20) return [];
+      if (t < 40) return ['horse', 'cart'];
+      if (t < 62) return jp ? ['horse', 'cart', 'cart'] : ['horse', 'cart', 'carriage'];
+      if (t < 85) return jp ? (yr >= 1860 ? ['rickshaw', 'rickshaw', 'cart'] : ['cart', 'horse', 'rickshaw']) : ['carriage', 'carriage', 'cart'];
+      return ['car', 'truck', 'car'];
+    }
+
+    syncVehicles() {
+      if (!this.roadList) this.refreshRoadList();
+      const t = this.params.technology;
+      const group = (g) => this.vehicles.filter((v) => v.group === g);
+      const kinds = this.baseVehicleKinds();
+      const want = {
+        road: kinds.length && this.roadList.length > 8 ? Math.min(10, 1 + Math.floor(this.roadList.length / 24)) : 0,
+        car: this.highway && this.asphaltList.length > 6 ? Math.min(9, 3 + Math.floor(this.asphaltList.length / 30)) : 0,
+        boat: this.waterList.length > 40 && t >= 15 ? Math.min(4, 1 + Math.floor(t / 35)) : 0,
+      };
+      for (const g in want) {
+        const list = group(g);
+        if (list.length > want[g]) list.slice(want[g]).forEach((v) => { v.dead = true; });
+        for (let k = list.length; k < want[g]; k++) this.spawnVehicle(g, kinds);
+      }
+      // 種類が時代遅れになったら少しずつ入れ替える
+      for (const v of group('road')) if (!v.dead && kinds.length && !kinds.includes(v.kind) && this.rnd() < 0.15) v.kind = kinds[(this.rnd() * kinds.length) | 0];
+      this.vehicles = this.vehicles.filter((v) => !v.dead);
+      for (const r of this.rails) {
+        if (!this.vehicles.some((v) => v.rail === r)) {
+          this.vehicles.push({ group: 'train', rail: r, kind: r.kind === 2 ? 'shinkansen' : 'steam', pos: 0, dir: 1, speed: r.kind === 2 ? 9 : 3, cars: r.kind === 2 ? 4 : 3 });
+        }
+      }
+    }
+
+    spawnVehicle(g, kinds) {
+      let pool = g === 'boat' ? this.waterList : g === 'car' ? this.asphaltList : this.roadList;
+      if (!pool || !pool.length) return;
+      const i = pool[(this.rnd() * pool.length) | 0];
+      const x = i % N, y = (i / N) | 0;
+      const kind = g === 'boat' ? 'boat' : g === 'car' ? ['car', 'truck', 'sports', 'car'][(this.rnd() * 4) | 0] : kinds[(this.rnd() * kinds.length) | 0];
+      const speed = { horse: 1.3, cart: 0.8, carriage: 1.6, rickshaw: 1.4, car: 3.2, truck: 2.4, sports: 5, boat: 0.7 }[kind] || 1;
+      this.vehicles.push({ group: g, kind, x, y, fx: x, fy: y, tx: x, ty: y, t: 1, speed, px: 0, py: 0, face: 1, color: ['#d83a3a', '#3a6ad8', '#f0f0f0', '#f0c030', '#2a2a2a'][(this.rnd() * 5) | 0] });
+    }
+
+    updateVehicles(dt) {
+      for (const v of this.vehicles) {
+        if (v.group === 'train') {
+          const n = v.rail.path.length;
+          v.pos += v.dir * v.speed * dt;
+          if (v.pos >= n - 1) { v.pos = n - 1; v.dir = -1; } else if (v.pos <= 0) { v.pos = 0; v.dir = 1; }
+          continue;
+        }
+        if (v.t >= 1) {
+          v.fx = v.tx; v.fy = v.ty;
+          const ok = (j) => {
+            if (j < 0) return false;
+            if (v.group === 'boat') return this.isWaterTile(j);
+            if (v.group === 'car') return this.use[j] === USE_ASPHALT || (this.use[j] >= USE_DIRT && !this.asphaltList.length);
+            return this.use[j] >= USE_DIRT;
+          };
+          const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([ox, oy]) => ok(this.idx(v.tx + ox, v.ty + oy)));
+          const fwd = dirs.filter(([ox, oy]) => !(v.tx + ox === v.px && v.ty + oy === v.py));
+          const pick = (fwd.length ? fwd : dirs);
+          if (!pick.length) { v.dead = !ok(this.idx(v.tx, v.ty)); continue; }
+          const [ox, oy] = pick[(this.rnd() * pick.length) | 0];
+          v.px = v.tx; v.py = v.ty;
+          v.tx += ox; v.ty += oy; v.t = 0;
+          v.face = (ox - oy) >= 0 ? 1 : -1;
+        } else v.t = Math.min(1, v.t + dt * v.speed);
+      }
+      this.vehicles = this.vehicles.filter((v) => !v.dead);
+    }
+
+    /* 乗り物の位置（ワールド座標）。列車は車両ごとに返す */
+    vehicleSprites() {
+      const out = [];
+      const fl = this.flood();
+      for (const v of this.vehicles) {
+        if (v.group === 'train') {
+          const path = v.rail.path;
+          for (let c = 0; c < v.cars; c++) {
+            const pos = Math.max(0, Math.min(path.length - 1, v.pos - c * 1.3 * v.dir));
+            const k = Math.floor(pos), f = pos - k;
+            const a = path[k], b = path[Math.min(path.length - 1, k + 1)];
+            const x = lerp(a % N, b % N, f), y = lerp((a / N) | 0, (b / N) | 0, f);
+            const h = Math.max(this.h[a], fl);
+            const s = this.screen(x, y, h);
+            const sxDir = v.rail.axis === 'x' ? 1 : -1;
+            out.push({ d: x + y + 0.55, v, car: c, sx: s.sx, sy: s.sy + 2 - (v.rail.kind === 2 ? 9 : 0), face: v.dir * sxDir });
+          }
+          continue;
+        }
+        const x = lerp(v.fx, v.tx, v.t), y = lerp(v.fy, v.ty, v.t);
+        const i0 = this.idx(v.fx, v.fy), i1 = this.idx(v.tx, v.ty);
+        const h = Math.max(lerp(this.h[i0] || 0, this.h[i1] || 0, v.t), fl, v.group === 'boat' ? 0 : -1);
+        const s = this.screen(x, y, h);
+        out.push({ d: x + y + 0.55, v, sx: s.sx, sy: s.sy + 2, face: v.face });
+      }
+      return out;
+    }
+
+    drawVehicle(g, it) {
+      const v = it.v, x = Math.round(it.sx), y = Math.round(it.sy), f = it.face >= 0 ? 1 : -1;
+      const px = (xx, yy, w, h, c) => { g.fillStyle = c; g.fillRect(f > 0 ? x + xx : x - xx - w, y + yy, w, h); };
+      switch (v.kind) {
+        case 'horse':
+          px(-2, -4, 5, 2, '#7a4a24'); px(3, -6, 2, 3, '#7a4a24'); px(4, -6, 1, 1, '#3a2010');
+          px(-2, -2, 1, 2, '#4a2a14'); px(2, -2, 1, 2, '#4a2a14'); px(-3, -4, 1, 2, '#3a2010');
+          px(-1, -6, 2, 2, '#c03a2a');
+          break;
+        case 'cart':
+          px(-4, -5, 6, 3, '#9a6a3a'); px(-4, -5, 6, 1, '#c8945a'); px(-3, -2, 2, 2, '#3a2a1a'); px(1, -2, 2, 2, '#3a2a1a');
+          px(3, -4, 4, 2, '#8a8a8a'); px(6, -5, 1, 2, '#6a6a6a');
+          break;
+        case 'carriage':
+          px(-4, -7, 6, 5, '#2a2a3a'); px(-4, -7, 6, 1, '#d8b040'); px(-3, -6, 2, 2, '#ffe9a8');
+          px(-4, -2, 2, 2, '#c8a040'); px(1, -2, 2, 2, '#c8a040'); px(3, -5, 4, 2, '#ece4d4'); px(6, -6, 1, 2, '#ece4d4');
+          break;
+        case 'rickshaw':
+          px(-3, -6, 4, 3, '#c83a2a'); px(-3, -3, 3, 3, '#2a2a2a'); px(-2, -7, 2, 1, '#2a2a3a');
+          px(1, -4, 3, 1, '#6a4426'); px(4, -6, 1, 1, '#f0c8a0'); px(4, -5, 1, 2, '#3a5a9a'); px(4, -3, 1, 2, '#2a2a3a');
+          break;
+        case 'car': case 'sports': case 'truck': {
+          if (v.kind === 'truck') { px(-5, -7, 6, 4, '#f0f0f4'); px(1, -6, 4, 3, v.color); px(3, -6, 1, 1, '#bfe8ff'); px(-4, -3, 2, 2, '#1a1a1a'); px(2, -3, 2, 2, '#1a1a1a'); break; }
+          const low = v.kind === 'sports';
+          px(-4, low ? -4 : -5, 8, low ? 2 : 3, low ? '#e82a2a' : v.color);
+          px(-2, low ? -5 : -7, 4, low ? 1 : 2, '#bfe8ff');
+          px(-3, -2, 2, 2, '#1a1a1a'); px(1, -2, 2, 2, '#1a1a1a');
+          px(4, low ? -4 : -5, 1, 1, '#fff6a0');
+          break;
+        }
+        case 'boat':
+          px(-4, 0, 8, 2, '#7a4a24'); px(-3, 2, 6, 1, '#5a3418');
+          px(0, -7, 1, 7, '#4a2a14'); px(-3, -6, 3, 5, '#f4f0e4'); px(1, -5, 2, 4, '#e8e2d0');
+          break;
+        case 'shinkansen':
+          px(-5, -5, 10, 3, '#f4f6fa'); px(-5, -3, 10, 1, '#2a5ad0'); px(-3, -5, 5, 1, '#3a4a6a');
+          if (it.car === 0) { px(5, -4, 2, 2, '#f4f6fa'); px(6, -3, 2, 1, '#2a5ad0'); }
+          break;
+        case 'steam':
+          if (it.car === 0) { px(-4, -6, 8, 4, '#1a1a22'); px(2, -9, 2, 3, '#2a2a32'); px(-4, -7, 3, 1, '#c03a2a'); px(-3, -2, 2, 2, '#3a3a3a'); px(1, -2, 2, 2, '#3a3a3a'); }
+          else { px(-4, -6, 8, 4, it.car === 1 ? '#3a2a1a' : '#6a3a2a'); px(-3, -5, 2, 1, '#ffd27a'); px(1, -5, 2, 1, '#ffd27a'); }
+          break;
+      }
+    }
+
+    /* 神託による時代無視のオーパーツを出現させる */
+    spawnMutant(cat, label) {
+      cat = WD.MUTANT_ALIAS[cat] || cat;
+      const M = WD.MUTANTS[cat];
+      if (!M) return [];
+      const made = [];
+      let delay = 0;
+      for (const [type, n] of M.build || []) for (let k = 0; k < n; k++) {
+        const b = this.addBuilding(type, { delay: delay++, label, mutant: true });
+        if (b) made.push(b);
+      }
+      if (M.rail) this.buildRailway(2);
+      if (M.highway) this.buildHighway();
+      this.refreshRoadList();
+      this.syncVehicles();
+      this.glitchPulse = 1.6;
+      this.flash = Math.max(this.flash, 0.3);
+      const pts = made.length ? made.map((b) => this.screen(b.x, b.y, this.bh(b))) : [this.screen(50, 50, 4)];
+      for (const p of pts) for (let k = 0; k < 24; k++) {
+        const a = this.rnd() * Math.PI * 2, sp = 20 + this.rnd() * 60;
+        this.particles.push({ x: p.sx, y: p.sy - 10, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.6 - 20, life: 1.2, max: 1.2, color: this.rnd() < 0.5 ? '#ff5adc' : '#4fd8ff', size: 2, grav: 30 });
+      }
+      return made;
     }
 
     drawTree(g, x, y, L, r) {
@@ -476,6 +876,7 @@
         spring: [255, 190, 220, 0.09], summer: [90, 220, 60, 0.07],
         autumn: [235, 120, 30, 0.15], winter: [235, 242, 255, 0.24],
       }[season];
+      if (this.season !== season) this.dirty = true; // 田んぼの色が季節で変わる
       this.seasonTint = 'rgba(' + T[0] + ',' + T[1] + ',' + T[2] + ',' + (T[3] * mild * k).toFixed(3) + ')';
       this.tintDirty = true;
       this.season = season;
@@ -525,7 +926,7 @@
         let ok = true;
         for (let oy = -rr - 1; oy <= rr + 1 && ok; oy++) for (let ox = -rr - 1; ox <= rr + 1; ox++) {
           const j = this.idx(x + ox, y + oy);
-          if (j < 0 || this.type[j] === VOID || this.occ[j]) { ok = false; break; }
+          if (j < 0 || this.type[j] === VOID || this.occ[j] || this.rail[j]) { ok = false; break; }
           if (Math.abs(ox) <= rr && Math.abs(oy) <= rr && (this.isWaterTile(j) || Math.abs(this.h[j] - h0) > 2)) { ok = false; break; }
         }
         if (!ok) continue;
@@ -547,7 +948,7 @@
     addBuilding(type, opts) {
       opts = opts || {};
       if (!WD.BUILDINGS[type]) return null;
-      if (this.buildings.filter((b) => !b.removing).length > 150) return null;
+      if (this.buildings.filter((b) => !b.removing).length > 190) return null;
       const spot = this.findSpot(type);
       if (!spot) return null;
       const rr = spot.water ? 0 : WD.BUILDINGS[type].r;
@@ -559,6 +960,7 @@
         if (j < 0) continue;
         this.occ[j] = 1;
         this.h[j] = h0;
+        this.use[j] = 0;
         if (this.type[j] === FOREST) this.type[j] = GRASS;
       }
       if (!spot.water) this.dirty = true;
@@ -568,7 +970,7 @@
         sprite: WD.Sprites.get(type, variant, this.course),
         fall: opts.instant ? 0 : -(240 + (opts.delay || 0) * 70 + this.rnd() * 40),
         vy: 0, alpha: 1, removing: false, sink: 0,
-        auto: !!opts.auto, symbol: !!opts.symbol, label: opts.label || '', emitT: this.rnd(), course: this.course,
+        auto: !!opts.auto, symbol: !!opts.symbol, mutant: !!opts.mutant, label: opts.label || '', emitT: this.rnd(), course: this.course,
       };
       this.buildings.push(b);
       return b;
@@ -624,14 +1026,23 @@
     /* パラメータに連動する「自然増減」の建物 */
     syncAuto(instant) {
       const p = this.params;
-      const tier = p.technology < 35 ? 'hut' : p.technology < 70 ? 'house' : 'building';
+      // 時代と技術に合った住まい（古代：竪穴住居、和の中世・近世：民家と長屋、近代：レンガ造り、未来：ビル）
+      const jp = (this.era ? this.era.region : this.course) === 'japan';
+      const yr = this.era ? this.era.year : 1500;
+      const homesN = Math.floor(p.population / 6);
+      const mix = p.technology < 35 ? { hut: 1 }
+        : p.technology < 55 ? (jp ? { house: 0.6, nagaya: 0.4 } : { house: 1 })
+          : p.technology < 75 ? (jp ? (yr >= 1860 ? { house: 0.4, nagaya: 0.2, brick: 0.4 } : { house: 0.5, nagaya: 0.5 }) : { house: 0.4, brick: 0.6 })
+            : { brick: 0.3, building: 0.7 };
       const targets = {
-        hut: tier === 'hut' ? Math.floor(p.population / 6) : 0,
-        house: tier === 'house' ? Math.floor(p.population / 6) : 0,
-        building: tier === 'building' ? Math.floor(p.population / 7) : 0,
+        hut: Math.round(homesN * (mix.hut || 0)),
+        house: Math.round(homesN * (mix.house || 0)),
+        nagaya: Math.round(homesN * (mix.nagaya || 0) / 2),
+        brick: Math.round(homesN * (mix.brick || 0)),
+        building: Math.round(homesN * (mix.building || 0)),
+        yagura: jp && p.technology >= 30 && p.technology < 75 && p.order >= 55 ? 1 + Math.floor((p.order - 55) / 20) : 0,
         factory: p.technology >= 50 ? Math.floor((p.technology - 40) / 18) : 0,
         tower: p.technology >= 62 ? Math.floor((p.technology - 50) / 14) : 0,
-        field: Math.max(0, Math.floor((p.population - 20) / 18)),
         ruins: p.order < 30 ? Math.floor((30 - p.order) / 6) + 1 : 0,
         statue: p.order > 78 ? Math.floor((p.order - 70) / 10) : 0,
         portal: p.distortion > 35 ? Math.floor((p.distortion - 25) / 22) : 0,
@@ -849,6 +1260,13 @@
       this.buildings = this.buildings.filter((b) => !(b.removing && b.alpha <= 0));
 
       this.updatePeople(dt * Math.min(2.5, this.timeScale));
+      this.updateVehicles(dt * Math.min(2.5, this.timeScale));
+      this.glitchPulse = Math.max(0, this.glitchPulse - dt);
+      for (const b of this.buildings) {
+        if (!b.mutant || b.removing || b.fall < 0 || this.rnd() > dt * 2.2) continue;
+        const p = this.screen(b.x, b.y, this.bh(b));
+        this.particles.push({ x: p.sx + (this.rnd() - 0.5) * b.sprite.w * 0.8, y: p.sy - this.rnd() * b.sprite.ay, vx: 0, vy: -8, life: 0.9, max: 0.9, color: this.rnd() < 0.5 ? '#ff7ae0' : '#7ae8ff', size: 1, grav: 0 });
+      }
 
       // 天候
       const wx = this.env.weather && this.env.weather !== 'none' ? this.env.weather : this.seasonWeather;
@@ -991,9 +1409,11 @@
         const x = lerp(p.fx, p.tx, p.t), y = lerp(p.fy, p.ty, p.t);
         items.push({ d: x + y + 0.5, p, x, y });
       }
+      for (const v of this.vehicleSprites()) items.push(v);
       items.sort((a, b) => a.d - b.d);
       for (const it of items) {
         if (it.b) this.drawBuilding(g, it.b);
+        else if (it.v) this.drawVehicle(g, it);
         else this.drawPerson(g, it.p, it.x, it.y);
       }
 
@@ -1207,7 +1627,7 @@
     }
 
     drawGlitch(g) {
-      const d = this.params.distortion;
+      const d = Math.max(this.params.distortion, this.glitchPulse > 0 ? 75 : 0);
       if (d < 30) return;
       const chance = (d - 30) / 260;
       if (this.rnd() < chance) {
@@ -1256,8 +1676,9 @@
         h: bytesToB64(new Uint8Array(this.h.buffer)),
         type: bytesToB64(this.type),
         buildings: this.buildings.filter((b) => !b.removing).map((b) => ({
-          type: b.type, x: b.x, y: b.y, h: b.h, r: b.r, variant: b.variant, auto: b.auto, symbol: b.symbol, label: b.label, course: b.course,
+          type: b.type, x: b.x, y: b.y, h: b.h, r: b.r, variant: b.variant, auto: b.auto, symbol: b.symbol, mutant: b.mutant, label: b.label, course: b.course,
         })),
+        use: bytesToB64(this.use), rail: bytesToB64(this.rail), rails: this.rails.map((r) => ({ kind: r.kind, axis: r.axis, line: r.line, path: r.path })), highway: this.highway,
       };
     }
 
@@ -1267,7 +1688,12 @@
       w.h.set(new Int8Array(b64ToBytes(data.h).buffer));
       w.type.set(b64ToBytes(data.type));
       w.env = Object.assign({}, w.env, data.env);
+      if (data.use) w.use.set(b64ToBytes(data.use));
+      if (data.rail) w.rail.set(b64ToBytes(data.rail));
+      w.rails = data.rails || [];
+      w.highway = !!data.highway;
       w.refreshLists();
+      w.refreshRoadList();
       for (const d of data.buildings) {
         if (!WD.BUILDINGS[d.type]) continue;
         for (let oy = -d.r; oy <= d.r; oy++) for (let ox = -d.r; ox <= d.r; ox++) {

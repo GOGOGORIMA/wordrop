@@ -812,3 +812,16 @@ body { font-family: 'DotGothic16', sans-serif; -webkit-font-smoothing: none; }
 @media (min-width: 768px) and (max-width: 1199px) and (orientation: portrait) and (max-height: 1100px) {
   .map-pane { height: 45vh; }
 }
+
+/* ---------- 物語としてのログ（システム用語なし。アイコンと色だけで区別） ---------- */
+.log-icon { margin-right: 4px; }
+.log-stage .yr { color: #b8a878; font-size: 11px; }
+.log-stage.main .yr { color: #e8d08a; }
+.log-stage.mutant { border-left-color: #ff5adc; background: rgba(255,90,220,0.08); }
+.log-stage.mutant .yr { color: #ff9aea; }
+.log-drop { color: #ffd8f4; font-size: 13px; margin: 8px 0 4px; padding: 4px 6px; border-left: 4px solid #ff5adc; background: rgba(90,20,90,0.25); }
+.log-drop b { background: none; color: #fff; text-shadow: 0 0 6px #ff5adc; padding: 0; }
+.log-stage.hist .hist-title { color: #ffd0c0; }
+.log-stage.hist .hist-fact { font-size: 11px; color: #9a8a80; }
+.log-era { color: #e8d08a; text-align: center; }
+.lg-mutant { border-color: #ff5adc; color: #ffb0f0; }
