@@ -113,7 +113,7 @@ ${dropsBlock(c.drops)}
 1. events（9件）: この単語が時代を崩壊・再構築していく年次のメイン事件。year は投下からの年数（0〜30の整数、昇順）。1件目は year 0（投下直後）、15年目までに6件以上、残りは30年目まで。
    - text: 80〜130文字。実在の人物・組織・地名を主語に、物理現象や社会崩壊をハードかつユーモラスに。前の事件を受けて連鎖的に暴走させる。
    - say: 目撃者の一言
-   - delta: 文明パラメータの変化。population / technology / order は -12〜+12、distortion（時代錯誤による時空の歪み）は -5〜+12 の整数。
+   - delta: 文明パラメータの変化。population / technology / order それぞれ -12〜+12 の整数。
 2. murmurs（12件）: メイン事件の合間に流れる市井の日常の小事件。after_months は投下から何ヶ月後か（2〜180の整数、昇順、数ヶ月おき）。
    - text: 40〜70文字。庶民・兵士・職人・僧侶などの具体的な小事件。
    - say: その場の人物の一言
@@ -124,11 +124,11 @@ ${dropsBlock(c.drops)}
 4. title: この改変を象徴する歴史用語風の見出し（20文字以内）
 
 ${RULES}
-- パラメータ(人口・技術・秩序)のいずれかが0以下か100以上になると文明が崩壊する。歪みは崩壊には関係しない時代錯誤の度合い。単語と時代の性質に忠実に、遠慮なく増減させてよい。
+- パラメータ(人口・技術・秩序)のいずれかが0以下か100以上になると文明が崩壊する。単語と時代の性質に忠実に、遠慮なく増減させてよい。
 
 # 出力形式（このJSONのみ）
 {"title": "…",
- "events": [{"year": 0, "text": "…", "say": "…", "delta": {"population": 0, "technology": 0, "order": 0, "distortion": 0}}, …],
+ "events": [{"year": 0, "text": "…", "say": "…", "delta": {"population": 0, "technology": 0, "order": 0}}, …],
  "murmurs": [{"after_months": 3, "text": "…", "say": "…"}, …],
  "opa": [{"after_months": 0, "type": "…", "text": "…", "say": "…"}, …]}`;
   }
@@ -159,8 +159,8 @@ ${RULES}
 {"title": "歪んだ後の事件名（25文字以内）",
  "text": "90〜140文字。神託の単語がこの事件の当事者（実在の人物・組織）をどう狂わせ、結末がどうひっくり返ったか",
  "say": "当事者の一言",
- "delta": {"population": 0, "technology": 0, "order": 0, "distortion": 0}}
-- delta は大事件なので大きめに。population / technology / order は -20〜+20、distortion は -5〜+15 の整数。人口・技術・秩序のいずれかが0以下か100以上で文明崩壊。`;
+ "delta": {"population": 0, "technology": 0, "order": 0}}
+- delta は大事件なので大きめに、各 -20〜+20 の整数。人口・技術・秩序のいずれかが0以下か100以上で文明崩壊。`;
   }
 
   function finalePrompt(c) {
@@ -216,7 +216,7 @@ ${RULES}
   const int = (v, lo, hi) => { const n = Math.round(Number(v)); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : 0; };
   const str = (v, max) => String(v == null ? '' : v).replace(/^\s*[【[][^】\]]{1,8}[】\]]\s*/, '').trim().slice(0, max);
   const say = (v) => Array.from(str(v, 40)).slice(0, WD.SAY_MAX).join('');
-  const delta = (d, m) => { d = d || {}; return { population: int(d.population, -m, m), technology: int(d.technology, -m, m), order: int(d.order, -m, m), distortion: int(d.distortion, -5, m) }; };
+  const delta = (d, m) => { d = d || {}; return { population: int(d.population, -m, m), technology: int(d.technology, -m, m), order: int(d.order, -m, m) }; };
   const need = (ok, what, raw) => { if (!ok) throw new AIError('format', 'Gemini の応答 JSON が不完全です：' + what, JSON.stringify(raw).slice(0, 400)); };
   const list = (v) => (Array.isArray(v) ? v.filter((x) => x && typeof x === 'object') : []);
 

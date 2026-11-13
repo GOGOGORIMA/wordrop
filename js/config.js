@@ -10,12 +10,11 @@ WD.LOCK_MONTHS = 180;       // 1回投下すると15年ロック
 WD.MAX_WORD = 15;           // 単語の最大文字数
 WD.SAY_MAX = 12;            // 吹き出しの最大文字数
 
-/* ---------- 文明パラメータ（collapse のものが 0 以下 / 100 以上で崩壊。歪みは時代錯誤の度合いで崩壊しない） ---------- */
+/* ---------- 文明パラメータ（どれかが 0 以下 / 100 以上で崩壊） ---------- */
 WD.PARAMS = [
-  { key: 'population', name: '人口', color: '#7ad0ff', collapse: true },
-  { key: 'technology', name: '技術', color: '#ffd23f', collapse: true },
-  { key: 'order', name: '秩序', color: '#ff8ad0', collapse: true },
-  { key: 'distortion', name: '歪み', color: '#b07aff', collapse: false },
+  { key: 'population', name: '人口', color: '#7ad0ff' },
+  { key: 'technology', name: '技術', color: '#ffd23f' },
+  { key: 'order', name: '秩序', color: '#ff8ad0' },
 ];
 
 /* ---------- AI 通信（プレイヤーの設定なしで、常にこの中継サーバーへ自動接続） ---------- */

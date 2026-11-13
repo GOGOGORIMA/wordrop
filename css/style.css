@@ -83,9 +83,9 @@ code { font-size: 12px; color: var(--accent); word-break: break-all; }
 .param { display: grid; grid-template-columns: 34px minmax(0, 1fr) 30px; align-items: center; gap: 8px; font-size: 13px; }
 .param + .param { margin-top: 6px; }
 .param .meter { margin: 0; height: 12px; position: relative; }
-.param.limit .meter::before, .param.limit .meter::after { content: ''; position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(255, 90, 74, 0.7); }
-.param.limit .meter::before { left: 10%; }
-.param.limit .meter::after { left: 90%; }
+.param .meter::before, .param .meter::after { content: ''; position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(255, 90, 74, 0.7); }
+.param .meter::before { left: 10%; }
+.param .meter::after { left: 90%; }
 .param b { text-align: right; }
 .param.danger b { color: var(--danger); animation: blink 0.8s steps(2) infinite; }
 

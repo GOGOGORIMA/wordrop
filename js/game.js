@@ -14,7 +14,7 @@
     Object.assign(S, {
       phase: S.phase || 'title', // title | draft | play | ended
       era: null,
-      params: { population: 50, technology: 50, order: 50, distortion: 0 },
+      params: { population: 50, technology: 50, order: 50 },
       month: 0,       // 開始からの経過月数（処理済み）
       frac: 0,        // 次の月までの進み具合（0〜1）
       speed: 1,
@@ -132,11 +132,10 @@
 
   function applyDelta(d) {
     for (const p of WD.PARAMS) S.params[p.key] += d[p.key] || 0;
-    S.params.distortion = clamp(S.params.distortion, 0, 100);
     renderParams();
   }
   function checkCollapse(trigger) {
-    const broken = WD.PARAMS.find((p) => p.collapse && (S.params[p.key] <= 0 || S.params[p.key] >= 100));
+    const broken = WD.PARAMS.find((p) => S.params[p.key] <= 0 || S.params[p.key] >= 100);
     if (broken) collapse(broken, trigger);
     return !!broken;
   }
@@ -350,7 +349,7 @@
     const era = WD.ERAS.find((e) => e.id === sv.eraId);
     resetState();
     Object.assign(S, {
-      era, params: Object.assign({ distortion: 0 }, sv.params), month: sv.month, century: sv.century, oracles: sv.oracles,
+      era, params: { population: sv.params.population, technology: sv.params.technology, order: sv.params.order }, month: sv.month, century: sv.century, oracles: sv.oracles,
       lockUntil: sv.lockUntil, queue: sv.queue, drops: sv.drops, historyDone: sv.historyDone, log: sv.log,
     });
     island.restore(sv.island, era);
@@ -416,7 +415,7 @@
     draft = [];
     resetState();
     S.era = era;
-    for (const p of WD.PARAMS) S.params[p.key] = p.collapse ? clamp(50 + (era.mod[p.key] || 0), 10, 90) : 0;
+    for (const p of WD.PARAMS) S.params[p.key] = clamp(50 + (era.mod[p.key] || 0), 10, 90);
     island.generate(era);
     island.setSeason(WD.seasonOf(1));
     island.settle(S.params);
@@ -481,7 +480,7 @@
     $('params').innerHTML = '';
     for (const p of WD.PARAMS) {
       const row = document.createElement('div');
-      row.className = 'param' + (p.collapse ? ' limit' : '');
+      row.className = 'param';
       row.id = 'p-' + p.key;
       row.innerHTML = '<span></span><div class="meter"><i></i></div><b></b>';
       row.querySelector('span').textContent = p.name;
@@ -495,9 +494,8 @@
       const v = S.params[p.key], row = $('p-' + p.key);
       row.querySelector('i').style.width = clamp(v, 0, 100) + '%';
       row.querySelector('b').textContent = v;
-      row.classList.toggle('danger', p.collapse && (v <= 15 || v >= 85));
+      row.classList.toggle('danger', v <= 15 || v >= 85);
     }
-    island.distortion = S.params.distortion;
   }
 
   let shown = '';

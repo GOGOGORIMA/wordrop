@@ -61,7 +61,6 @@
       this.clouds = Array.from({ length: 7 }, (_, i) => ({ x: Math.random(), y: 0.05 + Math.random() * 0.35, s: 0.6 + Math.random(), v: 0.004 + Math.random() * 0.006 }));
       this.stars = Array.from({ length: 90 }, () => ({ x: Math.random(), y: Math.random(), p: Math.random() * 6 }));
       this.night = false;      // タイトル画面用の星空
-      this.distortion = 0;     // 歪みが高いと画面にグリッチが走る
       this.bindInput();
     }
 
@@ -591,17 +590,6 @@
         g.fillStyle = '#000'; g.fillText('「' + fx.drop.word + '」', X + 2, Y * k * k + 2);
         g.fillStyle = '#ffe680'; g.fillText('「' + fx.drop.word + '」', X, Y * k * k);
         g.textAlign = 'left';
-      }
-      // 歪みが高いと時空のグリッチが走る
-      if (this.distortion > 40) {
-        const k = (this.distortion - 40) / 60;
-        g.fillStyle = 'rgba(140,60,255,' + k * 0.12 + ')'; g.fillRect(0, 0, vw, vh);
-        if (Math.random() < k * 0.35) {
-          for (let i = 0; i < 3; i++) {
-            g.fillStyle = Math.random() < 0.5 ? 'rgba(255,0,200,0.25)' : 'rgba(0,230,255,0.25)';
-            g.fillRect(0, Math.random() * vh, vw, 2 + Math.random() * 6);
-          }
-        }
       }
       if (fx.flash > 0) { g.fillStyle = 'rgba(255,255,230,' + fx.flash * 0.8 + ')'; g.fillRect(0, 0, vw, vh); }
       if (fx.alert > 0) {
