@@ -10,17 +10,20 @@ WD.LOCK_MONTHS = 180;       // 1回投下すると15年ロック
 WD.MAX_WORD = 15;           // 単語の最大文字数
 WD.SAY_MAX = 12;            // 吹き出しの最大文字数
 
-/* ---------- 文明パラメータ（どれかが 0 以下 / 100 以上で崩壊） ---------- */
+/* ---------- 文明パラメータ（collapse のものが 0 以下 / 100 以上で崩壊。歪みは時代錯誤の度合いで崩壊しない） ---------- */
 WD.PARAMS = [
-  { key: 'population', name: '人口', color: '#7ad0ff' },
-  { key: 'technology', name: '技術', color: '#ffd23f' },
-  { key: 'order', name: '秩序', color: '#ff8ad0' },
+  { key: 'population', name: '人口', color: '#7ad0ff', collapse: true },
+  { key: 'technology', name: '技術', color: '#ffd23f', collapse: true },
+  { key: 'order', name: '秩序', color: '#ff8ad0', collapse: true },
+  { key: 'distortion', name: '歪み', color: '#b07aff', collapse: false },
 ];
 
-/* ---------- AI 通信 ---------- */
-WD.ENDPOINT = 'https://wordrop-api.toheritu22.workers.dev/'; // 既定：Cloudflare Workers 経由
-WD.DEFAULT_MODEL = 'gemini-3.8-flash';                       // 個人キーで直接通信するときのモデル
+/* ---------- AI 通信（プレイヤーの設定なしで、常にこの中継サーバーへ自動接続） ---------- */
+WD.ENDPOINT = 'https://wordrop-api.toheritu22.workers.dev/';
 WD.AI_TIMEOUT_MS = 90000;
+
+/* ---------- オートセーブ ---------- */
+WD.SAVE_KEY = 'wordrop_autosave_v1';
 
 /* ---------- オーパーツ（神託で島のど真ん中に出現する、時代無視の建物・乗り物） ---------- */
 WD.OPA = {

@@ -35,7 +35,8 @@
           <button type="button" data-speed="4" title="×4">▶▶▶×4</button>
           <button type="button" id="skip" title="次のイベント年へスキップ">⏭</button>
         </div>
-        <button type="button" id="btn-ai" class="key" title="AI通信設定">🔑<i id="ai-dot" class="dot"></i></button>
+        <span id="saved" class="saved" aria-live="polite">💾 AUTO SAVED</span>
+        <button type="button" id="to-title" class="to-title">タイトルへ戻る</button>
       </header>
 
       <div class="scroll">
@@ -71,33 +72,30 @@
     </aside>
   </div>
 
+  <!-- タイトル -->
+  <section id="title" class="title-screen">
+    <canvas id="title-world" aria-hidden="true"></canvas>
+    <div class="title-box">
+      <h1 class="logo big">WORDROP</h1>
+      <p class="tagline">―ひとつの単語が、歴史を変える。―</p>
+      <div class="title-menu">
+        <button type="button" id="new-game" class="primary">▶ NEW GAME（新しい歴史を始める）</button>
+        <button type="button" id="continue" hidden>⏯ CONTINUE</button>
+      </div>
+      <p class="title-note">全50時代 × あなたの単語 × AI による、100年の歴史改変シミュレーション</p>
+    </div>
+  </section>
+
   <!-- 時代の選択 -->
   <div id="m-draft" class="modal" hidden>
     <div class="sheet wide">
       <p class="logo">WORDROP</p>
-      <p class="center sub">空に浮かぶ島に単語を投下して、100年の歴史を書き換えろ。</p>
       <h2 class="center">舞台となる時代を選べ</h2>
+      <p class="center sub">選んだ時代の開始年から、100年の歴史が動き出します。</p>
       <div id="draft-cards" class="eras"></div>
-    </div>
-  </div>
-
-  <!-- AI 通信設定 -->
-  <div id="m-settings" class="modal" hidden>
-    <div class="sheet">
-      <h2>🔑 AI通信設定</h2>
-      <p class="sub">既定では Cloudflare Workers（<code id="endpoint"></code>）経由で Gemini と通信します。Google AI Studio の API キーを入力すると、ブラウザから Gemini に直接通信します。</p>
-      <label for="api-key">Gemini API キー（任意・この端末にのみ保存）</label>
-      <div class="row">
-        <input id="api-key" type="password" placeholder="未入力なら Worker 経由" spellcheck="false" autocomplete="off">
-        <button type="button" id="show-key">表示</button>
-      </div>
-      <label for="api-model">モデル名（APIキー使用時）</label>
-      <input id="api-model" type="text" spellcheck="false">
-      <p id="api-status" class="status"></p>
-      <div class="actions">
-        <button type="button" id="test-api">接続テスト</button>
-        <button type="button" id="close-settings">閉じる</button>
-        <button type="button" id="save-settings" class="primary">保存</button>
+      <div class="actions draft-actions">
+        <button type="button" id="draft-back">← タイトルへ</button>
+        <button type="button" id="reroll" class="primary">🎲 別の時代を引き直す（ランダム再抽選）</button>
       </div>
     </div>
   </div>
@@ -109,14 +107,13 @@
       <p id="err-message" class="err-message"></p>
       <dl class="meta">
         <dt>処理</dt><dd id="err-task"></dd>
-        <dt>経路</dt><dd id="err-route"></dd>
+        <dt>通信先</dt><dd id="err-route"></dd>
         <dt>種別</dt><dd id="err-kind"></dd>
       </dl>
       <pre id="err-detail" class="detail"></pre>
       <p class="sub">ゲーム内の時間は止まっています。代わりの文章で勝手に進めることはありません。</p>
       <div class="actions">
         <button type="button" id="err-cancel">中止</button>
-        <button type="button" id="err-settings">🔑 API設定</button>
         <button type="button" id="err-retry" class="primary">↻ 再試行</button>
       </div>
     </div>

@@ -59,6 +59,9 @@
       this.fx = { shake: 0, flash: 0, alert: 0, drop: null, collapse: -1 };
       this.bubbles = [];
       this.clouds = Array.from({ length: 7 }, (_, i) => ({ x: Math.random(), y: 0.05 + Math.random() * 0.35, s: 0.6 + Math.random(), v: 0.004 + Math.random() * 0.006 }));
+      this.stars = Array.from({ length: 90 }, () => ({ x: Math.random(), y: Math.random(), p: Math.random() * 6 }));
+      this.night = false;      // タイトル画面用の星空
+      this.distortion = 0;     // 歪みが高いと画面にグリッチが走る
       this.bindInput();
     }
 
@@ -306,6 +309,41 @@
       return null;
     }
 
+    /* ================= セーブ／ロード ================= */
+    serialize() {
+      const b64 = (u8) => { let t = ''; for (let i = 0; i < u8.length; i += 8192) t += String.fromCharCode.apply(null, u8.subarray(i, i + 8192)); return btoa(t); };
+      return {
+        season: this.season, nextId: this.nextId,
+        ground: b64(this.ground), tree: b64(this.tree), use: b64(this.use), level: b64(this.level), rail: b64(this.rail), depth: b64(this.depth),
+        blds: [...this.blds.values()].map((b) => [b.id, b.type, b.x, b.y, b.kind]),
+        cars: this.cars, trains: this.trains,
+      };
+    }
+    restore(data, era) {
+      const u8 = (str) => Uint8Array.from(atob(str), (c) => c.charCodeAt(0));
+      this.era = era;
+      this.biome = BIOME[era.biome];
+      this.house = era.house;
+      this.rand = rng((Math.random() * 1e9) | 0);
+      ['ground', 'tree', 'use', 'level', 'rail', 'depth'].forEach((k) => (this[k] = u8(data[k])));
+      this.occ = new Int32Array(N * N);
+      this.blds = new Map();
+      for (const [id, type, x, y, kind] of data.blds) {
+        if (!WD.Sprites.has(type)) continue;
+        const n = WD.Sprites.size(type);
+        this.blds.set(id, { id, type, x, y, n, kind, born: this.t - 10 });
+        for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) this.occ[idx(x + i, y + j)] = id;
+      }
+      this.nextId = data.nextId;
+      this.cars = data.cars || [];
+      this.trains = data.trains || [];
+      this.people = [];
+      this.bubbles = [];
+      this.fx.collapse = -1;
+      this.season = data.season;
+      this.dirty = true;
+    }
+
     /* ================= 演出 ================= */
     setSeason(s) { if (s !== this.season) { this.season = s; this.dirty = true; } }
     say(text, at) {
@@ -480,11 +518,17 @@
       const fx = this.fx, s = this.season;
       g.setTransform(dpr, 0, 0, dpr, 0, 0);
       // 空
-      const sky = fx.collapse >= 0 ? ['#2a0606', '#a03a1a'] : SKY[s];
+      const sky = fx.collapse >= 0 ? ['#2a0606', '#a03a1a'] : this.night ? ['#04031a', '#2a1850'] : SKY[s];
       const grd = g.createLinearGradient(0, 0, 0, vh);
       grd.addColorStop(0, sky[0]); grd.addColorStop(1, sky[1]);
       g.fillStyle = grd; g.fillRect(0, 0, vw, vh);
-      g.fillStyle = 'rgba(255,255,255,0.75)';
+      if (this.night) {
+        for (const st of this.stars) {
+          g.fillStyle = 'rgba(255,255,240,' + (0.35 + 0.65 * Math.abs(Math.sin(this.t * 1.3 + st.p))) + ')';
+          g.fillRect(Math.round(st.x * vw), Math.round(st.y * vh), st.p > 5 ? 2 : 1, st.p > 5 ? 2 : 1);
+        }
+      }
+      g.fillStyle = this.night ? 'rgba(180,170,230,0.25)' : 'rgba(255,255,255,0.75)';
       for (const cl of this.clouds) {
         const x = cl.x * vw, y = cl.y * vh, w = 50 * cl.s;
         g.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(8 * cl.s));
@@ -547,6 +591,17 @@
         g.fillStyle = '#000'; g.fillText('「' + fx.drop.word + '」', X + 2, Y * k * k + 2);
         g.fillStyle = '#ffe680'; g.fillText('「' + fx.drop.word + '」', X, Y * k * k);
         g.textAlign = 'left';
+      }
+      // 歪みが高いと時空のグリッチが走る
+      if (this.distortion > 40) {
+        const k = (this.distortion - 40) / 60;
+        g.fillStyle = 'rgba(140,60,255,' + k * 0.12 + ')'; g.fillRect(0, 0, vw, vh);
+        if (Math.random() < k * 0.35) {
+          for (let i = 0; i < 3; i++) {
+            g.fillStyle = Math.random() < 0.5 ? 'rgba(255,0,200,0.25)' : 'rgba(0,230,255,0.25)';
+            g.fillRect(0, Math.random() * vh, vw, 2 + Math.random() * 6);
+          }
+        }
       }
       if (fx.flash > 0) { g.fillStyle = 'rgba(255,255,230,' + fx.flash * 0.8 + ')'; g.fillRect(0, 0, vw, vh); }
       if (fx.alert > 0) {

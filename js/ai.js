@@ -1,6 +1,7 @@
-/* WORDROP — AI 通信（Gemini の JSON モード）
+/* WORDROP — AI 通信（Cloudflare Workers 経由で Gemini の JSON モード）
+ * プレイヤーは何も設定しない。すべての通信は固定のエンドポイント WD.ENDPOINT へ自動で POST する。
  * 画面に出る歴史の文章はすべてここで Gemini に書かせる。ローカルの定型文や代替文章は持たない。
- * 失敗したら AIError を投げ、画面側がエラーモーダル（再試行／API設定）を出す。 */
+ * 失敗したら AIError を投げ、画面側がエラーモーダル（再試行／中止）を出す。 */
 (function () {
   class AIError extends Error {
     constructor(kind, message, detail) {
@@ -10,41 +11,10 @@
     }
   }
 
-  /* ---------- 設定（個人キーは localStorage にのみ保存） ---------- */
-  const KEY = 'wordrop.apiKey', MODEL = 'wordrop.model';
-  const read = (k, d) => { try { return localStorage.getItem(k) || d; } catch (e) { return d; } };
-  const settings = { apiKey: read(KEY, ''), model: read(MODEL, WD.DEFAULT_MODEL) };
-  function saveSettings(apiKey, model) {
-    settings.apiKey = apiKey.trim();
-    settings.model = model.trim() || WD.DEFAULT_MODEL;
-    try {
-      if (settings.apiKey) localStorage.setItem(KEY, settings.apiKey); else localStorage.removeItem(KEY);
-      localStorage.setItem(MODEL, settings.model);
-    } catch (e) { /* 保存できなくても今回のプレイには使える */ }
-  }
-  const route = (s) => ((s || settings).apiKey ? 'direct' : 'worker');
-  const routeLabel = (r) => (r === 'direct' ? '直接APIキー経由' : 'Worker経由');
-
-  /* ---------- 通信状態（ヘッダーの表示用） ---------- */
-  const status = { state: 'idle', route: route(), error: null };
-  let onStatus = () => {};
-  function setStatus(state, r, error) {
-    Object.assign(status, { state, route: r, error: error || null });
-    onStatus(status);
-  }
-
-  /* ---------- Gemini 呼び出し ---------- */
-  async function call(prompt, s) {
-    s = s || settings;
-    const r = route(s);
-    let url;
-    if (r === 'direct') {
-      url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(s.model) + ':generateContent?key=' + encodeURIComponent(s.apiKey);
-    } else {
-      url = WD.ENDPOINT;
-      if (!/^https?:\/\//.test(url || '')) throw new AIError('config', 'Cloudflare Workers のエンドポイント URL が設定されていません', 'js/config.js の WD.ENDPOINT を確認してください');
-    }
-    const where = r === 'direct' ? 'generativelanguage.googleapis.com（' + s.model + '）' : url;
+  /* ---------- Gemini 呼び出し（Worker が API キーを付けて Gemini の応答をそのまま返す） ---------- */
+  async function call(prompt) {
+    const url = WD.ENDPOINT;
+    if (!/^https?:\/\//.test(url || '')) throw new AIError('config', '中継サーバーの URL が設定されていません', 'js/config.js の WD.ENDPOINT を確認してください');
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), WD.AI_TIMEOUT_MS);
     let res, text;
@@ -55,36 +25,40 @@
         signal: ctrl.signal,
         body: JSON.stringify({
           contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          generationConfig: { responseMimeType: 'application/json', temperature: 1.0 },
+          generationConfig: { responseMimeType: 'application/json' },
         }),
       });
       text = await res.text();
     } catch (e) {
-      if (e && e.name === 'AbortError') throw new AIError('timeout', WD.AI_TIMEOUT_MS / 1000 + '秒以内に応答がありませんでした', where);
-      throw new AIError('network', '通信できませんでした（ネットワーク切断、または CORS で拒否された可能性があります）', where);
+      if (e && e.name === 'AbortError') throw new AIError('timeout', WD.AI_TIMEOUT_MS / 1000 + '秒以内に応答がありませんでした', url);
+      throw new AIError('network', '時空通信サーバーに接続できませんでした（ネットワーク切断、または CORS で拒否された可能性があります）', url);
     } finally {
       clearTimeout(timer);
     }
     if (!res.ok) {
       let msg = text;
       try { const j = JSON.parse(text); msg = (j.error && (j.error.message || j.error)) || j.message || text; } catch (e) { /* 本文をそのまま表示 */ }
-      const hint = res.status === 429 ? '：利用回数の上限に達しています。少し待って再試行してください'
-        : res.status === 401 || res.status === 403 ? '：API キーまたはアクセス権限を確認してください'
-          : res.status === 404 ? '：URL またはモデル名を確認してください'
-            : res.status >= 500 ? '：サーバー側のエラーです' : '';
-      throw new AIError('http', 'HTTP ' + res.status + (res.statusText ? ' ' + res.statusText : '') + hint, where + '\n' + String(msg).slice(0, 400));
+      const hint = res.status === 429 ? '：時空通信が混み合っています。少し待って再試行してください'
+        : res.status >= 500 ? '：サーバー側のエラーです' : '';
+      throw new AIError('http', 'HTTP ' + res.status + (res.statusText ? ' ' + res.statusText : '') + hint, url + '\n' + String(msg).slice(0, 400));
     }
     let data;
-    try { data = JSON.parse(text); } catch (e) { throw new AIError('parse', 'サーバーの応答が JSON ではありません', where + '\n' + text.slice(0, 400)); }
-    if (data.promptFeedback && data.promptFeedback.blockReason) throw new AIError('blocked', 'Gemini が生成を拒否しました（' + data.promptFeedback.blockReason + '）', '別の単語で試すか、再試行してください');
-    const cand = data.candidates && data.candidates[0];
+    try { data = parseLoose(text); } catch (e) { throw new AIError('parse', 'サーバーの応答が JSON ではありません', url + '\n' + text.slice(0, 400)); }
+    // Gemini 形式（candidates）でも、Worker が本文の JSON をそのまま返す形式でも受け取る
+    if (data && data.promptFeedback && data.promptFeedback.blockReason) throw new AIError('blocked', 'Gemini が生成を拒否しました（' + data.promptFeedback.blockReason + '）', '別の単語で試すか、再試行してください');
+    if (!data || !data.candidates) return data;
+    const cand = data.candidates[0];
     const out = ((cand && cand.content && cand.content.parts) || []).map((p) => p.text || '').join('').trim();
     if (!out) throw new AIError('format', 'Gemini の応答に本文がありません' + (cand && cand.finishReason ? '（' + cand.finishReason + '）' : ''), text.slice(0, 400));
-    const json = out.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
-    try { return JSON.parse(json); } catch (e) {
-      const a = json.indexOf('{'), b = json.lastIndexOf('}');
-      try { if (a >= 0 && b > a) return JSON.parse(json.slice(a, b + 1)); } catch (e2) { /* 下で失敗 */ }
-      throw new AIError('parse', 'Gemini が出力した JSON を解析できませんでした', json.slice(0, 400));
+    try { return parseLoose(out); } catch (e) { throw new AIError('parse', 'Gemini が出力した JSON を解析できませんでした', out.slice(0, 400)); }
+  }
+  // ```json … ``` のマークダウンや前後の余計な文字を取り除いてから JSON を読む
+  function parseLoose(text) {
+    const t = String(text).trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+    try { return JSON.parse(t); } catch (e) {
+      const a = t.indexOf('{'), b = t.lastIndexOf('}');
+      if (a >= 0 && b > a) return JSON.parse(t.slice(a, b + 1));
+      throw e;
     }
   }
 
@@ -139,7 +113,7 @@ ${dropsBlock(c.drops)}
 1. events（9件）: この単語が時代を崩壊・再構築していく年次のメイン事件。year は投下からの年数（0〜30の整数、昇順）。1件目は year 0（投下直後）、15年目までに6件以上、残りは30年目まで。
    - text: 80〜130文字。実在の人物・組織・地名を主語に、物理現象や社会崩壊をハードかつユーモラスに。前の事件を受けて連鎖的に暴走させる。
    - say: 目撃者の一言
-   - delta: 文明パラメータの変化。population / technology / order それぞれ -12〜+12 の整数。
+   - delta: 文明パラメータの変化。population / technology / order は -12〜+12、distortion（時代錯誤による時空の歪み）は -5〜+12 の整数。
 2. murmurs（12件）: メイン事件の合間に流れる市井の日常の小事件。after_months は投下から何ヶ月後か（2〜180の整数、昇順、数ヶ月おき）。
    - text: 40〜70文字。庶民・兵士・職人・僧侶などの具体的な小事件。
    - say: その場の人物の一言
@@ -150,11 +124,11 @@ ${dropsBlock(c.drops)}
 4. title: この改変を象徴する歴史用語風の見出し（20文字以内）
 
 ${RULES}
-- パラメータ(人口・技術・秩序)のいずれかが0以下か100以上になると文明が崩壊する。単語と時代の性質に忠実に、遠慮なく増減させてよい。
+- パラメータ(人口・技術・秩序)のいずれかが0以下か100以上になると文明が崩壊する。歪みは崩壊には関係しない時代錯誤の度合い。単語と時代の性質に忠実に、遠慮なく増減させてよい。
 
 # 出力形式（このJSONのみ）
 {"title": "…",
- "events": [{"year": 0, "text": "…", "say": "…", "delta": {"population": 0, "technology": 0, "order": 0}}, …],
+ "events": [{"year": 0, "text": "…", "say": "…", "delta": {"population": 0, "technology": 0, "order": 0, "distortion": 0}}, …],
  "murmurs": [{"after_months": 3, "text": "…", "say": "…"}, …],
  "opa": [{"after_months": 0, "type": "…", "text": "…", "say": "…"}, …]}`;
   }
@@ -185,8 +159,8 @@ ${RULES}
 {"title": "歪んだ後の事件名（25文字以内）",
  "text": "90〜140文字。神託の単語がこの事件の当事者（実在の人物・組織）をどう狂わせ、結末がどうひっくり返ったか",
  "say": "当事者の一言",
- "delta": {"population": 0, "technology": 0, "order": 0}}
-- delta は大事件なので大きめに、各 -20〜+20 の整数。いずれかが0以下か100以上で文明崩壊。`;
+ "delta": {"population": 0, "technology": 0, "order": 0, "distortion": 0}}
+- delta は大事件なので大きめに。population / technology / order は -20〜+20、distortion は -5〜+15 の整数。人口・技術・秩序のいずれかが0以下か100以上で文明崩壊。`;
   }
 
   function finalePrompt(c) {
@@ -242,7 +216,7 @@ ${RULES}
   const int = (v, lo, hi) => { const n = Math.round(Number(v)); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : 0; };
   const str = (v, max) => String(v == null ? '' : v).replace(/^\s*[【[][^】\]]{1,8}[】\]]\s*/, '').trim().slice(0, max);
   const say = (v) => Array.from(str(v, 40)).slice(0, WD.SAY_MAX).join('');
-  const delta = (d, m) => { d = d || {}; return { population: int(d.population, -m, m), technology: int(d.technology, -m, m), order: int(d.order, -m, m) }; };
+  const delta = (d, m) => { d = d || {}; return { population: int(d.population, -m, m), technology: int(d.technology, -m, m), order: int(d.order, -m, m), distortion: int(d.distortion, -5, m) }; };
   const need = (ok, what, raw) => { if (!ok) throw new AIError('format', 'Gemini の応答 JSON が不完全です：' + what, JSON.stringify(raw).slice(0, 400)); };
   const list = (v) => (Array.isArray(v) ? v.filter((x) => x && typeof x === 'object') : []);
 
@@ -276,27 +250,19 @@ ${RULES}
     return { title: str(raw.title, 40), body: str(raw.body, 800), sns: str(raw.sns, 280) };
   }
 
-  async function run(prompt, check, s) {
-    const r = route(s);
-    setStatus('pending', r);
+  async function run(prompt, check) {
     try {
-      const out = check(await call(prompt, s));
-      setStatus('ok', r);
-      return out;
+      return check(await call(prompt));
     } catch (e) {
-      const err = e instanceof AIError ? e : new AIError('format', '応答の処理中にエラーが起きました：' + (e && e.message), '');
-      setStatus('error', r, err);
-      throw err;
+      throw e instanceof AIError ? e : new AIError('format', '応答の処理中にエラーが起きました：' + (e && e.message), '');
     }
   }
 
   WD.AI = {
-    AIError, settings, saveSettings, status, route, routeLabel,
-    set onStatus(fn) { onStatus = fn; },
+    AIError,
     drop: (c) => run(dropPrompt(c), checkDrop),
     history: (c) => run(historyPrompt(c), checkHistory),
     finale: (c) => run(finalePrompt(c), checkFinale),
     report: (c) => run(reportPrompt(c), checkReport),
-    test: (s) => run('次のJSONをそのまま返してください: {"ok": true}', (r) => r, s),
   };
 })();
