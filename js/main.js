@@ -22,9 +22,9 @@
     $('offline-toggle').checked = settings.offline;
     $('offline-toggle-2').checked = settings.offline;
     const note = $('mode-note');
-    if (settings.offline) note.textContent = '◆ オフライン：内蔵の予言エンジンで歴史が変わります（通信なし）。';
-    else if (settings.apiKey) note.textContent = '◆ オンライン：Gemini（' + settings.model + '）が歴史を改変します。';
-    else note.textContent = '◆ APIキー未設定：このままでもオフライン予言で遊べます。⚙から設定するとGeminiが歴史を紡ぎます。';
+    if (settings.offline) note.textContent = '◆ オフライン：通信せず、内蔵のクロニクル演算で歴史が変わります。';
+    else if (settings.apiKey) note.textContent = '◆ ✨ AI神託 稼働中：あなたの個人キーで Gemini（' + settings.model + '）が歴史を紡ぎます。';
+    else note.textContent = '◆ ✨ AI神託 稼働中：設定不要。時空通信サーバー経由で AI が歴史を紡ぎます。';
     updateSourceHud();
   }
   function setOffline(v) {
@@ -136,7 +136,7 @@
     $('api-key').value = settings.apiKey;
     $('api-model').value = settings.model;
     $('offline-toggle-2').checked = settings.offline;
-    $('api-status').textContent = settings.apiKey ? '保存済みのキーがあります。' : 'キーは未設定です。';
+    $('api-status').textContent = settings.apiKey ? '個人キーで直接 Gemini と通信しています。' : '個人キーは未入力です（公式の時空通信サーバーを使用中）。';
     $('settings-modal').classList.remove('hidden');
     setTimeout(() => $('api-key').focus(), 50);
     // 設定中は時計を止める
@@ -160,7 +160,7 @@
       setOffline($('offline-toggle-2').checked);
       Sfx.play('select');
       closeSettings();
-      toast(settings.apiKey && !settings.offline ? 'Gemini モードで歴史を改変します' : 'オフライン予言モードで遊びます');
+      toast(settings.offline ? '内蔵のクロニクル演算だけで遊びます（オフライン）' : settings.apiKey ? '✨ 個人キーで AI神託が稼働します' : '✨ 公式の時空通信サーバーで AI神託が稼働します');
     });
     $('btn-clear-key').addEventListener('click', () => {
       $('api-key').value = '';
@@ -171,8 +171,7 @@
     });
     $('btn-test-api').addEventListener('click', async () => {
       const key = $('api-key').value.trim();
-      if (!key) { $('api-status').textContent = 'APIキーを入力してください。'; return; }
-      $('api-status').textContent = '接続中…';
+      $('api-status').textContent = key ? '個人キーで接続中…' : '公式の時空通信サーバーに接続中…';
       try {
         const r = await WD.Oracle.test({ apiKey: key, model: $('api-model').value.trim() || WD.DEFAULT_MODEL });
         $('api-status').textContent = '✔ 接続成功：' + (r && r.message ? r.message : 'OK');
@@ -635,7 +634,7 @@
     const [res] = await Promise.all([WD.Oracle.history(ctx, settings), sleep(2600)]);
     if (game.phase !== 'busy') return;
     al.classList.add('hidden');
-    if (res.error) toast('Gemini通信エラー：' + res.error + '　→ オフライン判定で代行しました', 6000);
+    noteSource(res);
     const r = res.result;
     game.histDone.push({ year: he.year, month: he.mon, name: he.name, title: r.title, text: r.text, century: game.century });
 
@@ -893,8 +892,7 @@
     };
     const [res] = await Promise.all([WD.Oracle.drop(ctx, settings), sleep(1900)]);
     if (game.phase !== 'busy') return; // 演算中にタイトルへ戻った等
-    if (res.error) toast('Gemini通信エラー：' + res.error + '　→ オフライン予言で代行しました', 6000);
-    updateSourceHud(res.source);
+    noteSource(res);
     const result = res.result;
 
     const idx = game.drops.length;
@@ -1248,7 +1246,7 @@
     };
     const [res] = await Promise.all([WD.Oracle.finale(ctx, settings), sleep(2600)]);
     if (game.phase !== 'final') return;
-    if (res.error) toast('Gemini通信エラー：' + res.error + '　→ オフラインで編纂しました', 6000);
+    noteSource(res);
     const r = res.result;
     $('hud-year').textContent = targetYear + '年';
     $('hud-era').textContent = '最終到達点';
@@ -1369,14 +1367,38 @@
     c.style.height = Math.floor(H * s) + 'px';
   }
 
-  function updateSourceHud(src) {
+  /* AI 神託の状態：稼働中／混雑中（内蔵演算で代行）／オフライン */
+  let fallbackShown = false;
+  function aiState() {
+    if (settings.offline) return 'offline';
+    if (!settings.apiKey && WD.Oracle.resting()) return 'busy';
+    return 'ai';
+  }
+  function updateSourceHud() {
+    const st = aiState();
+    const chip = $('ai-status');
+    if (chip) {
+      chip.textContent = st === 'ai' ? '[✨ AI神託 稼働中]' : st === 'busy' ? '[⏳ 内蔵クロニクル演算中]' : '[📜 内蔵クロニクル演算]';
+      chip.className = 'ai-status ' + st;
+      chip.title = (st === 'ai' ? (settings.apiKey ? '個人キーで Gemini に直接接続中' : '公式の時空通信サーバー経由で AI が稼働中') : st === 'busy' ? '時空通信が混雑しているため、しばらく内蔵演算で進行中' : 'オフライン（内蔵演算のみ）') + '／クリックで設定';
+    }
     const el = $('hud-source');
-    if (!el) return;
-    const online = WD.Oracle.online(settings);
-    if (src === 'offline' && online) { el.innerHTML = '<span style="color:#ff8a5a">● FALLBACK: OFFLINE PROPHECY</span>'; return; }
-    el.innerHTML = online
-      ? '<span style="color:#7aff8a">● GEMINI ONLINE</span> <span style="color:#9a94b8">' + esc(settings.model) + '</span>'
-      : '<span style="color:#ffd23f">● OFFLINE PROPHECY</span>';
+    if (el) {
+      el.innerHTML = st === 'ai'
+        ? '<span style="color:#7aff8a">● ✨ AI神託 稼働中</span>'
+        : st === 'busy' ? '<span style="color:#ffb06a">● 内蔵クロニクル演算</span>' : '<span style="color:#ffd23f">● OFFLINE</span>';
+    }
+  }
+  /* 生成結果の出どころを反映。通信に失敗していたら、さりげなく一言だけ知らせて続行 */
+  function noteSource(res) {
+    if (res.fallback || res.resting) {
+      if (!fallbackShown) {
+        fallbackShown = true;
+        logEl('log-aside', esc(WD.FALLBACK_NOTE));
+        if (res.via === 'own') toast('個人キーでの通信に失敗しました（' + res.error + '）。内蔵演算で続行します', 5000);
+      }
+    } else if (res.source !== 'offline') fallbackShown = false;
+    updateSourceHud();
   }
 
   function setupGame() {
@@ -1486,6 +1508,8 @@
     canvas.addEventListener('mouseleave', () => tip.classList.add('hidden'));
 
     window.addEventListener('resize', fitCanvas);
+    $('ai-status').addEventListener('click', openSettings);
+    setInterval(updateSourceHud, 15000); // 混雑で休ませていた通信が回復したら表示を戻す
     if (MOBILE.addEventListener) MOBILE.addEventListener('change', fitCanvas);
     if (window.ResizeObserver) new ResizeObserver(fitCanvas).observe($('map-pane'));
   }

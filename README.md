@@ -34,11 +34,13 @@
 
 全50時代のデータ（時代名・開始年・地域・背景・補正値・バイオーム・固有要素・シンボル建築）は `js/eras.js` に、時間の速さ・1チャプターの年数・神託の回数とクールタイム・10段階の変容イベントと市井のざわめきの間隔は `js/config.js` に定義しています。
 
-## Gemini API（任意）
+## AI 神託（Gemini）
 
-- タイトルまたはパネルの ⚙ から APIキーを設定（ブラウザの `localStorage` にのみ保存）
-- モデル: `gemini-3.8-flash`（設定画面で変更可）、`responseMimeType: "application/json"` で年次タイムライン（各年の出来事・パラメータ増減・箱庭の描画指示・市井のざわめき・オーパーツ `mutant_objects`）を受け取ります
-- キー未設定時・「オフライン」スイッチON時・通信失敗時は、内蔵のオフライン予言エンジンで遊べます
+- **設定不要**：URL を開いたプレイヤーは、最初から公式の中継サーバー（Cloudflare Workers：`https://wordrop-api.toheritu22.workers.dev/`）経由で AI 生成モードで遊べます。パネルのヘッダーには `[✨ AI神託 稼働中]` と表示されます
+  - 神託の15年タイムライン、史実イベントの衝突判定、最終の教科書を、Gemini の `generateContent` と同じボディ（`contents` と `generationConfig: { responseMimeType: "application/json" }`）で Worker に POST し、Worker が API キーを付けて Gemini の応答 JSON をそのまま返します
+  - 中継先は `js/config.js` の `WD.PROXY_URL` で変更できます
+- **無停止設計**：Worker が 429（無料枠の上限）や 500 系を返した場合、通信できない場合、30秒以内に応答がない場合は、内蔵のクロニクル演算（オフライン生成）に自動で切り替えてゲームを続行し、ログに「（時空通信が混雑しているため、内蔵クロニクル演算で進行します）」とさりげなく表示します。その後しばらく（429 は10分、それ以外は2分）は Worker を休ませて内蔵演算で進め、時間が経つと自動で AI 生成に戻ります
+- **上級者向け**：ヘッダーの `[✨ AI神託 稼働中]` をタップすると設定が開き、個人の Gemini API キー（ブラウザの `localStorage` にのみ保存）とモデル名（既定 `gemini-3.8-flash`）を入力できます。入力した場合は中継サーバーを通さず、ブラウザから直接 Gemini と通信します。「オフライン」スイッチで通信を完全に切ることもできます
 
 ## 公開（GitHub Pages）
 
@@ -52,7 +54,7 @@ js/eras.js        全50時代データベースと抽選
 js/history.js     各時代の史実の大事件（全50時代・172件）
 js/sprites.js     建物のプロシージャル・ドット絵
 js/iso-map.js     浮島の地形生成・アイソメトリック描画・住人・天候・演出
-js/oracle.js      Gemini API 通信とオフライン予言エンジン
+js/oracle.js      AI 通信（中継サーバー／個人キー）と内蔵のオフライン生成エンジン
 js/share-image.js 結果カード（教科書／滅亡報告書＋空撮）のPNG書き出し
 js/logo.js        ドット絵ロゴ
 js/sfx.js         WebAudio 効果音

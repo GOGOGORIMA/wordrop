@@ -353,25 +353,39 @@
   }
 
   /* ================= Gemini API ================= */
+  /* ---------- AI 通信の経路 ----------
+     標準：公式の中継サーバー（キー不要）／個人キーが入力されていればそれで Gemini に直接
+     中継サーバーが混雑（429）やエラーを返したら、しばらく内蔵演算で進めて Worker を休ませる */
+  let proxyRestUntil = 0;
+  const route = (settings) => (settings.offline ? null : settings.apiKey ? 'own' : Date.now() < proxyRestUntil ? null : 'proxy');
+
   async function callGemini(settings, prompt) {
+    const way = settings.apiKey ? 'own' : 'proxy';
+    const body = JSON.stringify({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: { responseMimeType: 'application/json', temperature: 1.0 },
+    });
     const model = (settings.model || WD.DEFAULT_MODEL).trim();
-    const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent?key=' + encodeURIComponent(settings.apiKey);
+    const url = way === 'own'
+      ? 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent?key=' + encodeURIComponent(settings.apiKey)
+      : WD.PROXY_URL;
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 60000);
+    const timer = setTimeout(() => ctrl.abort(), way === 'own' ? 60000 : WD.PROXY_TIMEOUT_MS);
     try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: ctrl.signal,
-        body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          generationConfig: { responseMimeType: 'application/json', temperature: 1.0 },
-        }),
-      });
+      let res;
+      try {
+        res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ctrl.signal, body });
+      } catch (e) {
+        const err = new Error(e && e.name === 'AbortError' ? '応答がタイムアウトしました' : '通信できませんでした');
+        err.status = 0;
+        throw err;
+      }
       if (!res.ok) {
         let msg = 'HTTP ' + res.status;
         try { const j = await res.json(); if (j.error && j.error.message) msg += ': ' + j.error.message; } catch (e) { /* ignore */ }
-        throw new Error(msg);
+        const err = new Error(msg);
+        err.status = res.status;
+        throw err;
       }
       const data = await res.json();
       const parts = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
@@ -380,6 +394,19 @@
       return parseJSON(text);
     } finally {
       clearTimeout(timer);
+    }
+  }
+
+  /* AI で生成し、どんな失敗でも内蔵演算に切り替えてゲームを止めない */
+  async function generate(settings, prompt, sanitize, fallback) {
+    const way = route(settings);
+    if (!way) return { result: fallback(), source: 'offline', resting: !settings.offline };
+    try {
+      const raw = await callGemini(settings, prompt);
+      return { result: sanitize(raw), source: way === 'own' ? 'gemini' : 'proxy' };
+    } catch (e) {
+      if (way === 'proxy') proxyRestUntil = Date.now() + (e.status === 429 ? WD.PROXY_REST_MS.busy : WD.PROXY_REST_MS.error);
+      return { result: fallback(), source: 'offline', fallback: true, via: way, error: e.message || String(e) };
     }
   }
 
@@ -680,41 +707,19 @@ ${dropsBlock(ctx.drops)}
     };
   }
 
-  function online(settings) { return !settings.offline && !!settings.apiKey; }
+  /* AI 生成モードか（オフライン指定でなければ、キー無しでも中継サーバーで AI が動く） */
+  function online(settings) { return !settings.offline; }
+  function resting() { return Date.now() < proxyRestUntil; }
 
   WD.Oracle = {
     online,
-    async drop(ctx, settings) {
-      if (!online(settings)) return { result: offlineDrop(ctx), source: 'offline' };
-      try {
-        const raw = await callGemini(settings, dropPrompt(ctx));
-        return { result: sanitizeDrop(raw, ctx), source: 'gemini' };
-      } catch (e) {
-        return { result: offlineDrop(ctx), source: 'offline', error: e.message || String(e) };
-      }
-    },
-    async finale(ctx, settings) {
-      if (!online(settings)) return { result: offlineFinale(ctx), source: 'offline' };
-      try {
-        const raw = await callGemini(settings, finalePrompt(ctx));
-        return { result: sanitizeFinale(raw, ctx), source: 'gemini' };
-      } catch (e) {
-        return { result: offlineFinale(ctx), source: 'offline', error: e.message || String(e) };
-      }
-    },
+    resting,
+    drop: (ctx, settings) => generate(settings, dropPrompt(ctx), (raw) => sanitizeDrop(raw, ctx), () => offlineDrop(ctx)),
+    finale: (ctx, settings) => generate(settings, finalePrompt(ctx), (raw) => sanitizeFinale(raw, ctx), () => offlineFinale(ctx)),
+    history: (ctx, settings) => generate(settings, historyPrompt(ctx), (raw) => sanitizeHistory(raw, ctx), () => offlineHistory(ctx)),
     miniEvent,
-    async history(ctx, settings) {
-      if (!online(settings)) return { result: offlineHistory(ctx), source: 'offline' };
-      try {
-        const raw = await callGemini(settings, historyPrompt(ctx));
-        return { result: sanitizeHistory(raw, ctx), source: 'gemini' };
-      } catch (e) {
-        return { result: offlineHistory(ctx), source: 'offline', error: e.message || String(e) };
-      }
-    },
     async test(settings) {
-      const raw = await callGemini(settings, '次のJSONをそのまま返してください: {"ok": true, "message": "WORDROP接続成功"}');
-      return raw;
+      return callGemini(settings, '次のJSONをそのまま返してください: {"ok": true, "message": "WORDROP接続成功"}');
     },
   };
 })();

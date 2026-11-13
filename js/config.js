@@ -3,6 +3,12 @@ window.WD = window.WD || {};
 
 WD.MAX_WORD_LEN = 15;
 WD.DEFAULT_MODEL = 'gemini-3.8-flash';
+/* 公式の中継サーバー（Cloudflare Workers）。Gemini の generateContent と同じボディを POST すると、
+   Worker 側で API キーが付与されて Gemini の応答 JSON がそのまま返る。プレイヤーはキー入力不要 */
+WD.PROXY_URL = 'https://wordrop-api.toheritu22.workers.dev/';
+WD.PROXY_TIMEOUT_MS = 30000;
+WD.PROXY_REST_MS = { busy: 10 * 60 * 1000, error: 2 * 60 * 1000 }; // 失敗後、内蔵演算で進める時間（429 / それ以外）
+WD.FALLBACK_NOTE = '（時空通信が混雑しているため、内蔵クロニクル演算で進行します）';
 /* リアルタイム進行 */
 WD.SECONDS_PER_MONTH = 5;            // 等倍：5秒＝1ヶ月（60秒＝1年）
 WD.SPEEDS = [0, 1, 2, 4];            // ⏸ / ×1 / ×2 / ×4
