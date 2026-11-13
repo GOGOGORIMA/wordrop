@@ -6,19 +6,16 @@ WD.DEFAULT_MODEL = 'gemini-3.8-flash';
 /* 公式の中継サーバー（Cloudflare Workers）。Gemini の generateContent と同じボディを POST すると、
    Worker 側で API キーが付与されて Gemini の応答 JSON がそのまま返る。プレイヤーはキー入力不要 */
 WD.PROXY_URL = 'https://wordrop-api.toheritu22.workers.dev/';
-WD.PROXY_TIMEOUT_MS = 30000;
-WD.PROXY_REST_MS = { busy: 10 * 60 * 1000, error: 2 * 60 * 1000 }; // 失敗後、内蔵演算で進める時間（429 / それ以外）
-WD.FALLBACK_NOTE = '（時空通信が混雑しているため、内蔵クロニクル演算で進行します）';
+WD.AI_TIMEOUT_MS = 90000;           // 1回の生成を待つ上限。超えたらエラーダイアログ（ローカル生成への切り替えはしない）
 /* リアルタイム進行 */
 WD.SECONDS_PER_MONTH = 5;            // 等倍：5秒＝1ヶ月（60秒＝1年）
 WD.SPEEDS = [0, 1, 2, 4];            // ⏸ / ×1 / ×2 / ×4
 WD.CENTURY_YEARS = 100;              // 1チャプター＝100年。100年ごとに「確定」か「継続」を選ぶ
 WD.ORACLES_PER_CENTURY = 3;          // 100年につき投下できる単語（神託）の数
 WD.COOLDOWN_YEARS = 15;              // 1回投下したら、次の神託までゲーム内で15年待つ
-WD.DAILY_MONTHS = [24, 36];          // 日常の小イベントの間隔（2〜3年おき）
 /* 神託1回が起こす「15年間の濃密タイムライン」
  * レイヤーA：メイン歴史変容（10段階・11件）。phase は5つの社会侵食フェーズ（6＝長期余波）
- * レイヤーB：市井のざわめき（4〜6ヶ月おきに差し込まれるマイクロログ＋浮島の吹き出し） */
+ * レイヤーB：市井のざわめき（AI が投下から何ヶ月後かを指定する15件のマイクロログ＋浮島の吹き出し） */
 WD.MAIN_STAGES = [
   { offset: 0, key: '着弾', phase: 1, desc: '未知の概念の出現と、当時の人々の誤解・混乱' },
   { offset: 1, key: '試行', phase: 1, desc: '権力者や商人による最初の実験的利用' },
@@ -36,8 +33,7 @@ WD.PHASES = ['', '着弾期', '流行期', '魔改造期', '制度化期', '定�
 WD.EVENT_OFFSETS = WD.MAIN_STAGES.map((s) => s.offset);
 /* 投下からの年数に対応する段階（古いセーブの年数にも、直前の段階で対応） */
 WD.stageOf = (offset) => WD.MAIN_STAGES.filter((s) => s.offset <= offset).pop() || WD.MAIN_STAGES[0];
-WD.MURMUR_COUNT = [12, 15];          // AI が書く市井のざわめきの数
-WD.MURMUR_INTERVAL = [4, 6];         // 市井のざわめきの間隔（ゲーム内の月）
+WD.MURMUR_COUNT = [8, 15];           // 市井のざわめき：AI に15件書かせ、8件未満の応答はエラー扱い
 WD.SAY_MAX = 10;                     // 吹き出しの最大文字数
 WD.SAVE_KEY = 'wordrop.save.v1';
 
@@ -145,7 +141,6 @@ WD.MUTANTS = {
   amusement:   { name: '観覧車・黄金の巨像', build: [['ferris', 1], ['goldmonument', 1]] },
 };
 WD.MUTANT_ALIAS = { office: 'skyscraper', shop: 'convenience', train: 'railway', car: 'highway', antenna: 'tower', plant: 'factory', monument: 'amusement' };
-WD.MUTANT_YEARS = [1, 4, 8, 12];
 WD.SKIES = ['clear', 'dusk', 'night', 'storm', 'toxic', 'aurora', 'crimson', 'golden', 'cyber'];
 WD.SEAS = ['blue', 'emerald', 'dark', 'red', 'purple', 'frozen', 'golden', 'toxic'];
 WD.LANDS = ['normal', 'lush', 'desert', 'frozen', 'wasteland', 'cyber', 'flooded', 'sakura', 'jungle', 'urban'];

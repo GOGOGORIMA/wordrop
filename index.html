@@ -35,13 +35,7 @@
 
           <div class="mt-4 pt-4 border-t-2 border-dashed border-[#5a5070] flex items-center justify-between gap-3">
             <button id="btn-settings" class="metal-btn text-xs px-3 py-2">⚙ API設定</button>
-            <label class="flex items-center gap-2 cursor-pointer font-dot text-sm">
-              <span>オフライン</span>
-              <span class="switch">
-                <input type="checkbox" id="offline-toggle">
-                <span class="slider"></span>
-              </span>
-            </label>
+            <span class="font-pixel text-[8px] text-[#7aff8a]">100% AI GENERATED</span>
           </div>
           <p id="mode-note" class="font-dot text-[11px] text-[#b8b0d0] mt-3 text-left leading-relaxed"></p>
         </div>
@@ -87,7 +81,7 @@
         <header class="flex items-center justify-between gap-2 px-1">
           <div>
             <div class="font-pixel text-[13px] text-[#ffd23f] engrave">WORDROP</div>
-            <button id="ai-status" type="button" class="ai-status" title="AIの設定を開く">[✨ AI神託 稼働中]</button>
+            <button id="ai-status" type="button" class="ai-status st-idle" title="AIの設定を開く">[○ Worker経由｜未通信]</button>
             <div id="panel-course" class="font-dot text-[11px] text-[#d8d0bc] mt-1">日本史コース</div>
           </div>
           <div class="flex items-center gap-2">
@@ -214,7 +208,7 @@
   <div id="settings-modal" class="modal hidden">
     <div class="modal-box menu-frame max-w-md w-full">
       <h2 class="font-pixel text-xs text-[#ffd23f] mb-2">AI SETTINGS</h2>
-      <p class="font-dot text-xs text-[#d8d0f0] mb-4 leading-relaxed">✨ 標準では、公式の時空通信サーバー経由で AI（Gemini）が歴史を紡ぎます。設定は不要です。<br>以下は、自分の Gemini API キーを使いたい上級者向けの設定です。</p>
+      <p class="font-dot text-xs text-[#d8d0f0] mb-4 leading-relaxed">✨ 標準では、公式の中継サーバー（Cloudflare Workers）経由で Gemini が歴史を生成します（<b>Worker経由</b>・設定不要）。<br>自分の Gemini API キーを入力すると、中継サーバーを通さずブラウザから直接通信します（<b>直接APIキー経由</b>）。</p>
       <label class="block font-dot text-sm mb-1">個人の Gemini API キー（任意・この端末の localStorage にのみ保存）</label>
       <div class="flex gap-2">
         <input id="api-key" type="password" class="word-input flex-1" placeholder="未入力なら公式サーバーを使います" autocomplete="off" spellcheck="false">
@@ -222,17 +216,13 @@
       </div>
       <label class="block font-dot text-sm mt-4 mb-1">モデル名（個人キー使用時のみ）</label>
       <input id="api-model" type="text" class="word-input w-full" spellcheck="false">
-      <label class="flex items-center gap-2 mt-4 cursor-pointer font-dot text-sm">
-        <span class="switch"><input type="checkbox" id="offline-toggle-2"><span class="slider"></span></span>
-        <span>オフライン（通信せず、内蔵のクロニクル演算だけで遊ぶ）</span>
-      </label>
-      <p id="api-status" class="font-dot text-xs mt-3 min-h-[1.5em] text-[#b8b0d0]"></p>
+      <p id="api-status" class="font-dot text-xs mt-3 min-h-[1.5em] text-[#b8b0d0] whitespace-pre-wrap break-all"></p>
       <div class="flex flex-wrap gap-2 justify-end mt-4">
         <button id="btn-test-api" class="metal-btn text-xs px-3 py-2" type="button">接続テスト</button>
         <button id="btn-clear-key" class="metal-btn text-xs px-3 py-2" type="button">キー削除</button>
         <button id="btn-save-settings" class="metal-btn primary text-xs px-4 py-2" type="button">保存して閉じる</button>
       </div>
-      <p class="font-dot text-[11px] text-[#8a84a8] mt-4 leading-relaxed">個人キーは Google AI Studio で取得できます。入力した場合は公式サーバーを通さず、この端末のブラウザから直接 Google に送信されます。通信が混み合ったときは、自動的に内蔵のクロニクル演算に切り替わってゲームは止まりません。</p>
+      <p class="font-dot text-[11px] text-[#8a84a8] mt-4 leading-relaxed">個人キーは Google AI Studio で取得できます。入力した場合は公式サーバーを通さず、この端末のブラウザから直接 Google に送信されます。歴史の文章はすべて Gemini が単語ごとに生成します。通信に失敗したときは内蔵の代替文章では進めず、原因を表示して時間を止めます。</p>
     </div>
   </div>
 
@@ -330,6 +320,27 @@
           <button id="btn-retry" class="metal-btn primary text-xs px-4 py-2">同じモードで再挑戦</button>
           <button class="metal-btn text-xs px-4 py-2 btn-restart">タイトルへ</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= AI 通信エラー ================= -->
+  <div id="ai-error-modal" class="modal ai-error-modal hidden" role="alertdialog" aria-labelledby="ae-head" aria-describedby="ae-message">
+    <div class="modal-box menu-frame ae-frame max-w-md w-full">
+      <h2 id="ae-head" class="font-pixel text-xs text-[#ff6a5a] mb-2">TIME-LINK ERROR</h2>
+      <p class="font-dot text-base text-[#ffe6dc] mb-2">時空通信に失敗しました</p>
+      <p id="ae-message" class="font-dot text-sm text-[#ffb8a8] leading-relaxed"></p>
+      <dl class="ae-meta font-dot text-xs">
+        <dt>処理</dt><dd id="ae-task"></dd>
+        <dt>経路</dt><dd id="ae-route"></dd>
+        <dt>種別</dt><dd id="ae-kind"></dd>
+      </dl>
+      <pre id="ae-detail" class="ae-detail"></pre>
+      <p class="font-dot text-[11px] text-[#9a94b8] mt-3 leading-relaxed">ゲーム内の時間は止まっています。内蔵の代替文章で勝手に進めることはありません。</p>
+      <div class="flex flex-wrap gap-2 justify-end mt-4">
+        <button id="ae-cancel" class="metal-btn text-xs px-3 py-2" type="button">中止</button>
+        <button id="ae-settings" class="metal-btn text-xs px-3 py-2" type="button">⚙ API設定を開く</button>
+        <button id="ae-retry" class="metal-btn primary text-xs px-4 py-2" type="button">↻ 再試行</button>
       </div>
     </div>
   </div>

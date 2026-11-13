@@ -290,6 +290,33 @@ body { font-family: 'DotGothic16', sans-serif; -webkit-font-smoothing: none; }
   font-family: 'DotGothic16', sans-serif; font-size: 13px; box-shadow: 4px 4px 0 #000;
 }
 
+/* ---------- AI 神託の経路と通信ステータス ---------- */
+.ai-status {
+  display: inline-block; margin-top: 3px; padding: 1px 6px; max-width: 100%;
+  font-family: 'DotGothic16', sans-serif; font-size: 11px; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  background: #0c0a18; border: 2px solid #5a5070; color: #b8b0d0; cursor: pointer; box-shadow: 2px 2px 0 #000;
+}
+.ai-status:hover { border-color: #e8e0ff; }
+.ai-status.st-ok { color: #7aff8a; border-color: #2f8a3a; }
+.ai-status.st-pending { color: #ffd23f; border-color: #8a6a1a; animation: ai-blink 1s steps(2) infinite; }
+.ai-status.st-error { color: #ff6a5a; border-color: #a02a20; background: #2a0a0a; }
+@keyframes ai-blink { 50% { opacity: .55; } }
+#hud-source.st-ok { color: #7aff8a; }
+#hud-source.st-pending { color: #ffd23f; }
+#hud-source.st-error { color: #ff6a5a; }
+#hud-source.st-idle { color: #b8b0d0; }
+
+/* ---------- AI 通信エラーダイアログ ---------- */
+.ai-error-modal { z-index: 55; }
+.ae-frame { border-color: #ff6a5a !important; box-shadow: 0 0 0 4px #3a0a0a, 0 0 24px rgba(255,80,60,.35), 8px 8px 0 rgba(0,0,0,.5); }
+.ae-meta { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; margin-top: 12px; padding: 8px 10px; background: #0c0a18; border: 2px solid #3a3050; }
+.ae-meta dt { color: #8a84a8; }
+.ae-meta dd { color: #e8e0ff; word-break: break-all; }
+.ae-detail {
+  margin-top: 8px; padding: 8px 10px; max-height: 9em; overflow: auto; white-space: pre-wrap; word-break: break-all;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: #d8c8c0; background: #08060f; border: 2px dashed #5a3a3a;
+}
+
 /* ---------- 時代ドラフト ---------- */
 .draft-modal { background: rgba(4,3,12,0.55); align-items: flex-start; }
 @media (min-height: 760px) { .draft-modal { align-items: center; } }
